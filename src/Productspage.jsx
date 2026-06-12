@@ -5,6 +5,7 @@ import { Button, Badge, Skeleton, Input, springConfig } from "./components/UI";
 import { Plus, Search, Edit2, Trash2, PackagePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./hooks/useToast";
+import AIDemandForecast from "./components/AIDemandForecast";
 
 const emptyProduct = { name: "", price: "", stock: "", category: "", reorder_level: "2" };
 
@@ -18,6 +19,8 @@ export default function ProductsPage() {
     const [editingId, setEditingId] = useState(null);
     const [formProduct, setFormProduct] = useState(emptyProduct);
     const [saving, setSaving] = useState(false);
+    const [showForecast, setShowForecast] = useState(false);
+    const [forecastProduct, setForecastProduct] = useState(null);
 
     const fetchProducts = useCallback(async () => {
         await Promise.resolve();
@@ -247,6 +250,7 @@ export default function ProductsPage() {
                                     <td style={{ padding: "20px 0", textAlign: "right" }}>
                                         <div style={{ display: "flex", gap: "20px", justifyContent: "flex-end" }}>
                                             <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEdit(product)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}><Edit2 size={13} /></button>
+                                            <button type="button" aria-label={`Forecast ${product.name}`} onClick={() => { setForecastProduct(product.id); setShowForecast(true); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }} title="Forecast"><PackagePlus size={13} /></button>
                                             <button type="button" aria-label={`Delete ${product.name}`} onClick={() => deleteProduct(product.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)" }}><Trash2 size={13} /></button>
                                         </div>
                                     </td>
@@ -279,6 +283,7 @@ export default function ProductsPage() {
                     </div>
                 )}
             </AnimatePresence>
+            {showForecast && <AIDemandForecast productId={forecastProduct} onClose={() => setShowForecast(false)} />}
         </div>
     );
 }
