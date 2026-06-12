@@ -1,6 +1,6 @@
 import { Card, Button } from './UI';
-import agents from '../services/automation/agents';
-import { generateBusinessReport } from '../services/ai/businessAnalyst';
+import agents from '../../services/automation/agents';
+import { generateBusinessReport } from '../../services/ai/businessAnalyst';
 import { useAuth } from '../hooks/useAuth';
 import { useState } from 'react';
 
@@ -22,12 +22,14 @@ export default function ExecCommandCenter() {
           await agents.runAgentsOnce(user?.id);
           await agents.processPendingTasks(user?.id);
         }
-      } catch (e) {
+      } catch {
         // network or auth issue; fallback to client-side
         await agents.runAgentsOnce(user?.id);
         await agents.processPendingTasks(user?.id);
       }
-    } catch (e) { console.error(e); }
+    } catch {
+      console.error('Failed to run agents or report');
+    }
     setRunning(false);
   };
 

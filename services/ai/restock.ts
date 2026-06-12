@@ -1,5 +1,7 @@
 import { supabase } from '../../src/supabase';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 type Recommendation = {
   productId: string;
   productName: string;
@@ -43,7 +45,7 @@ function scorePriority(recommended: number, predictedDemand: number): 'high' | '
 }
 
 async function callAiModel(productSummary: any) {
-  // This function will call OpenAI or Anthropic if keys exist using fetch; otherwise return null
+  if (DEMO_MODE) return null;
   const openaiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY;
   const anthropicKey = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
   if (!openaiKey && !anthropicKey) return null;

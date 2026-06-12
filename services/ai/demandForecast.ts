@@ -1,5 +1,7 @@
 import { supabase } from '../../src/supabase';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 type ForecastResult = {
   productId: string;
   productName: string;
@@ -75,6 +77,7 @@ function scoreConfidence(history: number[]) {
 }
 
 async function callAiModel(productName: string, history: number[]) {
+  if (DEMO_MODE) return null;
   const openaiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY;
   const anthropicKey = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
   if (!openaiKey && !anthropicKey) return null;

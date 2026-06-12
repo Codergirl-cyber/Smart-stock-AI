@@ -16,11 +16,11 @@ export async function processPendingTasksServer(limit = 20) {
     try {
       await supabase.from('agent_tasks').update({ status: 'processing' }).eq('id', t.id);
       const result = await executeTask(t);
-      await supabase.from('agent_execution_logs').insert([{ task_id: t.id, agent_name: t.agent_name, status: 'completed', result }]);
+      await supabase.from('agent_execution_logs').insert([{ task_id: t.id, agent_name: t.agent_name, status: 'completed', result, user_id: t.user_id, created_by: 'system' }]);
       await supabase.from('agent_tasks').update({ status: 'completed' }).eq('id', t.id);
       processed.push({ id: t.id, ok: true, result });
     } catch (e: any) {
-      await supabase.from('agent_execution_logs').insert([{ task_id: t.id, agent_name: t.agent_name, status: 'failed', result: { error: e?.message || String(e) } }]);
+      await supabase.from('agent_execution_logs').insert([{ task_id: t.id, agent_name: t.agent_name, status: 'failed', result: { error: e?.message || String(e) }, user_id: t.user_id, created_by: 'system' }]);
       await supabase.from('agent_tasks').update({ status: 'dismissed' }).eq('id', t.id);
       processed.push({ id: t.id, ok: false, error: e?.message || String(e) });
     }

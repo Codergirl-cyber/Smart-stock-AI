@@ -18,7 +18,7 @@ export async function runAgentsOnce(userId?: string) {
     if (stock <= reorder) {
       // create task if not exists pending
       const desc = `Product ${p.name} (id:${p.id}) stock=${stock} <= reorder_level=${reorder}`;
-      await ensureTask('Low Stock Agent', 'low_stock', 'high', desc, { productId: p.id, stock });
+      await ensureTask('Low Stock Agent', 'low_stock', 'high', desc, { productId: p.id, stock }, userId);
     }
   }
 
@@ -40,9 +40,9 @@ export async function runAgentsOnce(userId?: string) {
   Object.keys(salesLast7).forEach(pid => {
     const last = salesLast7[pid] || 0; const prev = salesPrev7[pid] || 0;
     if (prev === 0 && last >= 5) {
-      ensureTask('Demand Spike Agent', 'demand_spike', 'high', `Product ${pid} sales increased from ${prev} to ${last}`, { productId: pid, last, prev });
+      ensureTask('Demand Spike Agent', 'demand_spike', 'high', `Product ${pid} sales increased from ${prev} to ${last}`, { productId: pid, last, prev }, userId);
     } else if (prev > 0 && (last / prev) >= 2.0) {
-      ensureTask('Demand Spike Agent', 'demand_spike', 'medium', `Product ${pid} sales doubled (${prev} → ${last})`, { productId: pid, last, prev });
+      ensureTask('Demand Spike Agent', 'demand_spike', 'medium', `Product ${pid} sales doubled (${prev} → ${last})`, { productId: pid, last, prev }, userId);
     }
   });
 
@@ -51,7 +51,7 @@ export async function runAgentsOnce(userId?: string) {
   const soldIds = new Set(orderItems.filter((it:any)=> new Date(it.created_at) >= cutoff30).map((it:any)=>it.product_id));
   prods.forEach((p:any) => {
     if (!soldIds.has(p.id)) {
-      ensureTask('Slow Moving Agent', 'slow_moving', 'low', `No sales for product ${p.name} in 30 days`, { productId: p.id });
+      ensureTask('Slow Moving Agent', 'slow_moving', 'low', `No sales for product ${p.name} in 30 days`, { productId: p.id }, userId);
     }
   });
 
@@ -65,17 +65,25 @@ export async function runAgentsOnce(userId?: string) {
     if (!p) continue;
     const stock = Number(p.stock || 0); const reorder = Number(p.reorder_level ?? 2);
     if (stock <= reorder * 1.5) {
-      ensureTask('Revenue Risk Agent', 'revenue_risk', 'critical', `High-selling product ${p.name} (sold ${qty}) nearing stockout (stock=${stock})`, { productId: pid, sold: qty });
+      ensureTask('Revenue Risk Agent', 'revenue_risk', 'critical', `High-selling product ${p.name} (sold ${qty}) nearing stockout (stock=${stock})`, { productId: pid, sold: qty }, userId);
     }
   }
 }
 
-async function ensureTask(agent_name: string, task_type: string, priority: string, description: string, meta: any) {
+async function ensureTask(agent_name: string, task_type: string, priority: string, description: string, meta: any, userId?: string, createdBy?: string) {
   try {
-    // check existing pending task with same agent and product
-    const { data } = await supabase.from('agent_tasks').select('*').eq('agent_name', agent_name).eq('task_type', task_type).eq('status', 'pending').limit(1);
+    if (!userId) {
+      // require userId for ownership unless running with service role (server-side)
+      console.warn('ensureTask skipped: missing userId; only service role may create tasks without user context');
+      return;
+    }
+    // check existing pending task with same agent, product and owner
+    const q = supabase.from('agent_tasks').select('*').eq('agent_name', agent_name).eq('task_type', task_type).eq('status', 'pending').eq('user_id', userId).limit(1);
+    const { data } = await q;
     if (data && data.length > 0) return;
-    await supabase.from('agent_tasks').insert([{ agent_name, task_type, priority, status: 'pending', description, meta }]);
+    const insertRow: any = { agent_name, task_type, priority, status: 'pending', description, meta, user_id: userId };
+    if (createdBy) insertRow.created_by = createdBy;
+    await supabase.from('agent_tasks').insert([insertRow]);
   } catch (e) {
     console.error('ensureTask error', e);
   }
@@ -83,7 +91,9 @@ async function ensureTask(agent_name: string, task_type: string, priority: strin
 
 export async function processPendingTasks(userId?: string) {
   try {
-    const { data } = await supabase.from('agent_tasks').select('*').eq('status', 'pending').order('created_at', { ascending: true }).limit(10);
+    let q = supabase.from('agent_tasks').select('*').eq('status', 'pending').order('created_at', { ascending: true }).limit(10);
+    if (userId) q = q.eq('user_id', userId);
+    const { data } = await q;
     const tasks = data || [];
     for (const t of tasks) {
       await supabase.from('agent_tasks').update({ status: 'processing' }).eq('id', t.id);
@@ -91,6 +101,8 @@ export async function processPendingTasks(userId?: string) {
       // For demo, we'll mark completed and append a note to description
       await new Promise(r => setTimeout(r, 300));
       await supabase.from('agent_tasks').update({ status: 'completed', description: (t.description || '') + ' — processed' }).eq('id', t.id);
+      // insert execution log with user context
+      try { await supabase.from('agent_execution_logs').insert([{ task_id: t.id, agent_name: t.agent_name, status: 'completed', result: { demo: true }, user_id: t.user_id }]); } catch (e) {}
     }
   } catch (e) { console.error('processPendingTasks error', e); }
 }

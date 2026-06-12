@@ -2,6 +2,9 @@
 const DEFAULT_PROXY = (import.meta.env.VITE_AI_PROXY_URL as string) || '/api/ai/proxy';
 
 async function callProxy(payload: any) {
+  if (import.meta.env.VITE_DEMO_MODE === 'true') {
+    return { ok: false, demo: true, text: `DEMO: ${payload.prompt?.slice(0, 160)}` };
+  }
   const url = DEFAULT_PROXY;
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });

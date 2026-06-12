@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Card, Button } from './UI';
 import { generateBusinessReport } from '../../services/ai/businessAnalyst';
 import { useAuth } from '../hooks/useAuth';
@@ -34,6 +34,14 @@ export default function AIBusinessReportWidget() {
     } finally { setLoading(false); }
   };
 
+  useEffect(() => {
+    if (!user) return;
+    if (!report && !loading) {
+      runAnalysis();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, report, loading]);
+
   const exportJSON = () => {
     const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
@@ -51,32 +59,39 @@ export default function AIBusinessReportWidget() {
   };
 
   return (
-    <Card style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
-      <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-        <HealthGauge score={report?.inventoryHealth?.score ?? 0} />
-        <div>
-          <h3 style={{ margin: 0 }}>AI Business Analyst</h3>
-          <div className="caption" style={{ color: 'var(--text-muted)' }}>{report ? `Last: ${new Date(report.generatedAt).toLocaleString()}` : 'No analysis yet.'}</div>
-          <div style={{ marginTop: 8 }} className="caption">Health: {report?.inventoryHealth?.score ?? '—'}</div>
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8 }}>
-        <Button onClick={runAnalysis} disabled={loading}>{loading ? 'Running…' : 'Run AI Analysis'}</Button>
-        <Button variant="secondary" onClick={exportJSON} disabled={!report}>Export JSON</Button>
-        <Button variant="ghost" onClick={exportCSV} disabled={!report}>Export CSV</Button>
-      </div>
-
-      {/* Detailed report preview below */}
-      {report && (
-        <div style={{ position: 'absolute', left: 20, right: 20, top: '110px', zIndex: 1100 }}>
-          <div className="panel-card">
-            <h3>Executive Summary</h3>
-            <p>{report.executiveSummary}</p>
-            <h4>Recommendations</h4>
-            <ul>{report.recommendations.map((r,i)=>(<li key={i}>{r}</li>))}</ul>
+    <Card style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'space-between' }}>
+        <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
+          <HealthGauge score={report?.inventoryHealth?.score ?? 0} />
+          <div>
+            <h3 style={{ margin: 0 }}>AI Business Analyst</h3>
+            <div className="caption" style={{ color: 'var(--text-muted)' }}>{report ? `Last: ${new Date(report.generatedAt).toLocaleString()}` : 'Generating your first report...'}</div>
+            <div style={{ marginTop: 8 }} className="caption">Health: {report?.inventoryHealth?.score ?? '—'}</div>
           </div>
         </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button onClick={runAnalysis} disabled={loading}>{loading ? 'Running…' : 'Refresh'}</Button>
+          <Button variant="secondary" onClick={exportJSON} disabled={!report}>Export JSON</Button>
+          <Button variant="ghost" onClick={exportCSV} disabled={!report}>Export CSV</Button>
+        </div>
+      </div>
+
+      {report ? (
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
+          <div>
+            <h4 style={{ marginBottom: 8 }}>Executive Summary</h4>
+            <p className="body" style={{ margin: 0, color: 'var(--text-muted)' }}>{report.executiveSummary}</p>
+          </div>
+          <div>
+            <h4 style={{ marginBottom: 8 }}>Top Recommendations</h4>
+            <ul style={{ paddingLeft: '1.1rem', margin: 0, color: 'var(--text-muted)' }}>
+              {report.recommendations.map((r, i) => <li key={i}>{r}</li>)}
+            </ul>
+          </div>
+        </div>
+      ) : (
+        <div className="body" style={{ color: 'var(--text-muted)' }}>Loading your AI analysis and executive summary.</div>
       )}
     </Card>
   );

@@ -7,7 +7,7 @@ import { AuthProvider } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
 import ErrorBoundary from './components/ErrorBoundary'
-import { startAgentRunner } from './services/automation/runner';
+import { startAgentRunner } from '../services/automation/runner';
 
 // Default light; only apply dark when user explicitly saved it
 document.documentElement.setAttribute(

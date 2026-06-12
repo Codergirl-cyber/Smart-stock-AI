@@ -1,5 +1,7 @@
 import { supabase } from '../../src/supabase';
 
+const DEMO_MODE = import.meta.env.VITE_DEMO_MODE === 'true';
+
 type InventoryContext = {
   totalProducts: number;
   lowStockProducts: Array<any>;
@@ -101,6 +103,7 @@ function safeJsonString(obj: any) {
 }
 
 async function callAi(prompt: string) {
+  if (DEMO_MODE) return null;
   const openaiKey = (import.meta as any).env?.VITE_OPENAI_API_KEY;
   const anthropicKey = (import.meta as any).env?.VITE_ANTHROPIC_API_KEY;
   if (!openaiKey && !anthropicKey) return null;
