@@ -6,6 +6,7 @@ import { Skeleton, springConfig } from "./components/UI";
 import { motion } from "framer-motion";
 import { ShoppingBag, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import AIRecommendations from "./components/AIRecommendations";
+import AIInventoryCopilot from "./components/AIInventoryCopilot";
 
 function getLast7Days() {
     const days = [];
@@ -161,6 +162,10 @@ const Dashboard = () => {
                 <h1 className="h1">Dashboard</h1>
                 <p className="subheading" style={{ marginTop: "8px" }}>Your business performance at a glance.</p>
             </header>
+
+            <div style={{ marginBottom: '20px' }}>
+                <AIInventoryCopilot />
+            </div>
 
             {!loading && insights.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "28px" }}>
