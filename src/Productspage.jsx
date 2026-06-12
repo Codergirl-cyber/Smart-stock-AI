@@ -6,7 +6,7 @@ import { Plus, Search, Edit2, Trash2, PackagePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./hooks/useToast";
 
-const emptyProduct = { name: "", price: "", stock: "" };
+const emptyProduct = { name: "", price: "", stock: "", category: "", reorder_level: "2" };
 
 export default function ProductsPage() {
     const { showToast } = useToast();
@@ -68,6 +68,8 @@ export default function ProductsPage() {
             name: product.name,
             price: String(product.price),
             stock: String(product.stock ?? 0),
+            category: product.category ?? '',
+            reorder_level: String(product.reorder_level ?? 2),
         });
         setShowForm(true);
     };
@@ -95,6 +97,8 @@ export default function ProductsPage() {
                 name: formProduct.name,
                 price: Number(formProduct.price),
                 stock: Number(formProduct.stock) || 0,
+                category: formProduct.category,
+                reorder_level: Number(formProduct.reorder_level),
                 updated_at: new Date().toISOString(),
             };
 
@@ -109,6 +113,8 @@ export default function ProductsPage() {
                 if (error) throw error;
                 setProducts((prev) => prev.map((p) => (p.id === editingId ? data[0] : p)));
                 showToast("Product updated.", "success");
+                // Notify other parts of the app that inventory changed
+                try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
             } else {
                 const { data, error } = await supabase
                     .from("products")
@@ -118,6 +124,7 @@ export default function ProductsPage() {
                 if (error) throw error;
                 setProducts((prev) => [data[0], ...prev]);
                 showToast("Product added.", "success");
+                try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
             }
 
             closeForm();
@@ -225,9 +232,15 @@ export default function ProductsPage() {
                                 >
                                     <td className="body" style={{ padding: "20px 0", fontWeight: "500" }}>{product.name}</td>
                                     <td style={{ padding: "20px 0" }}>
-                                        <Badge status={product.stock > 0 ? "success" : "error"}>
-                                            {product.stock > 0 ? "In Stock" : "Out"}
-                                        </Badge>
+                                        {
+                                            (() => {
+                                                const reorder = Number(product.reorder_level ?? 2);
+                                                const qty = Number(product.stock ?? 0);
+                                                if (qty <= 0) return <Badge status="error">Out</Badge>;
+                                                if (qty <= reorder) return <Badge status="warning">Low</Badge>;
+                                                return <Badge status="success">In Stock</Badge>;
+                                            })()
+                                        }
                                     </td>
                                     <td className="mono" style={{ padding: "20px 0", color: "var(--text-secondary)" }}>{product.stock}</td>
                                     <td className="mono" style={{ padding: "20px 0", fontWeight: "600" }}>Rs {product.price.toLocaleString()}</td>
@@ -255,6 +268,8 @@ export default function ProductsPage() {
                                 <Input label="Product Name" placeholder="e.g. Silk Saree" value={formProduct.name} onChange={(e) => setFormProduct((p) => ({ ...p, name: e.target.value }))} />
                                 <Input label="Price (INR)" type="number" placeholder="0" value={formProduct.price} onChange={(e) => setFormProduct((p) => ({ ...p, price: e.target.value }))} />
                                 <Input label="Stock" type="number" placeholder="0" value={formProduct.stock} onChange={(e) => setFormProduct((p) => ({ ...p, stock: e.target.value }))} />
+                                <Input label="Category" placeholder="e.g. Apparel" value={formProduct.category} onChange={(e) => setFormProduct((p) => ({ ...p, category: e.target.value }))} />
+                                <Input label="Reorder Level" type="number" placeholder="2" value={formProduct.reorder_level} onChange={(e) => setFormProduct((p) => ({ ...p, reorder_level: e.target.value }))} />
                             </div>
                             <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                                 <Button variant="secondary" onClick={closeForm} disabled={saving}>Cancel</Button>

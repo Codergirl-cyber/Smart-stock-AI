@@ -43,8 +43,11 @@ const Dashboard = () => {
 
     const { user } = useAuth();
 
-    useEffect(() => {
-        const fetchStats = async () => {
+    const fetchStats = async () => {
+        if (!user) {
+            setLoading(false);
+            return;
+        }
             if (!user) {
                 setLoading(false);
                 return;
@@ -69,7 +72,10 @@ const Dashboard = () => {
                 const productsCount = products.length;
                 const pendingCount = orders.filter((o) => o.delivery_status === "pending").length;
                 const unpaidCount = orders.filter((o) => o.payment_status === "unpaid").length;
-                const lowStock = products.filter((p) => p.stock <= 2);
+                const lowStock = products.filter((p) => {
+                    const reorder = Number(p.reorder_level ?? 2);
+                    return Number(p.stock ?? 0) <= reorder;
+                });
 
                 setStats([
                     { label: "Revenue", value: revenue, prefix: "Rs " },
@@ -114,7 +120,7 @@ const Dashboard = () => {
                 if (lowStock.length > 0) {
                     nextInsights.push({
                         type: "warning",
-                        message: `${lowStock.length} product${lowStock.length > 1 ? "s" : ""} low on stock (≤2 units).`,
+                        message: `${lowStock.length} product${lowStock.length > 1 ? "s" : ""} low on stock.`,
                         link: "/products",
                         linkLabel: "Update inventory",
                     });
@@ -125,8 +131,17 @@ const Dashboard = () => {
             } finally {
                 setLoading(false);
             }
-        };
+    };
+
+    // Initial fetch and subscribe to global data-change events so dashboard updates immediately
+    useEffect(() => {
         fetchStats();
+        const handler = () => {
+            setLoading(true);
+            fetchStats();
+        };
+        window.addEventListener('sellersync-data-changed', handler);
+        return () => window.removeEventListener('sellersync-data-changed', handler);
     }, [user]);
 
     const chartMax = useMemo(

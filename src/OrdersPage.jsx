@@ -110,8 +110,8 @@ export default function OrdersPage() {
                 return;
             }
 
-            // Create order and update stock atomically
-            const { error } = await supabase.rpc(
+            // Create order and update stock atomically via RPC (returns error on insufficient stock)
+            const { data: rpcData, error } = await supabase.rpc(
                 "create_order_atomic",
                 {
                     p_product_id: selectedProductId,
@@ -124,8 +124,19 @@ export default function OrdersPage() {
                     p_user_id: user.id,
                 }
             );
-            
-            if (error) throw error;
+
+            if (error) {
+                // Detect insufficient stock error returned by the DB function
+                const msg = String(error.message || error);
+                if (msg.includes('insufficient_stock')) {
+                    // parse available count if present
+                    const m = msg.match(/available=(\d+)/);
+                    const available = m ? Number(m[1]) : null;
+                    showToast(available !== null ? `Insufficient stock. Only ${available} remaining.` : 'Insufficient stock for selected product.', 'error');
+                    return;
+                }
+                throw error;
+            }
 
             await fetchOrders();
             await fetchProducts();
@@ -142,6 +153,8 @@ export default function OrdersPage() {
                 order_date: new Date().toISOString().split('T')[0]
             });
             setSelectedProductId("");
+            // notify dashboard and other views to refresh
+            try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
         } catch (err) {
             console.error(err);
             showToast(err.message || "Failed to complete order. Check stock and try again.", "error");
