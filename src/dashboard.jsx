@@ -8,6 +8,9 @@ import { ShoppingBag, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import AIRecommendations from "./components/AIRecommendations";
 import AIInventoryCopilot from "./components/AIInventoryCopilot";
 import AIBusinessReportWidget from "./components/AIBusinessReport";
+import AgentActivity from "./components/AgentActivity";
+import NotificationsBell from "./components/NotificationsBell";
+import ExecCommandCenter from "./components/ExecCommandCenter";
 
 function getLast7Days() {
     const days = [];
@@ -212,6 +215,14 @@ const Dashboard = () => {
                     </motion.div>
                 ))}
             </motion.div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 340px', gap: 16, marginBottom: 20 }}>
+                            <AgentActivity />
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                                <NotificationsBell />
+                                <ExecCommandCenter />
+                            </div>
+                        </div>
 
             <motion.div 
                 style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", marginBottom: "24px" }}
