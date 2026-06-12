@@ -5,6 +5,7 @@ import { useAuth } from "./hooks/useAuth";
 import { Skeleton, springConfig } from "./components/UI";
 import { motion } from "framer-motion";
 import { ShoppingBag, AlertTriangle, Package, TrendingUp } from "lucide-react";
+import AIRecommendations from "./components/AIRecommendations";
 
 function getLast7Days() {
     const days = [];
@@ -281,6 +282,7 @@ const Dashboard = () => {
                         </div>
                     )}
                 </div>
+                <AIRecommendations />
             </motion.div>
 
             <div className="panel-card">
