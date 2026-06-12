@@ -191,9 +191,10 @@ export function AuthProvider({ children }) {
   const assertClient = () => {
     if (!supabase) {
       const msg =
-        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env, then restart the dev server.';
+        'Supabase is not configured. Add VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY to .env.local (do NOT commit), then restart the dev server.';
       setError(msg);
-      throw new Error(msg);
+      console.error('[Auth] Supabase not configured:', msg);
+      return null;
     }
     return supabase;
   };
@@ -201,6 +202,7 @@ export function AuthProvider({ children }) {
   const signUp = async (email, password) => {
     setError(null);
     const client = assertClient();
+    if (!client) throw new Error('Supabase client not available. Check environment variables.');
 
     const { data, error: signUpError } = await client.auth.signUp({
       email,
@@ -229,6 +231,7 @@ export function AuthProvider({ children }) {
   const signInWithPassword = async (email, password) => {
     setError(null);
     const client = assertClient();
+    if (!client) throw new Error('Supabase client not available. Check environment variables.');
 
     const { data, error: signInError } = await client.auth.signInWithPassword({
       email,
@@ -255,6 +258,7 @@ export function AuthProvider({ children }) {
   const signInWithGoogle = async () => {
     setError(null);
     const client = assertClient();
+    if (!client) throw new Error('Supabase client not available. Check environment variables.');
 
     const { error: oauthError } = await client.auth.signInWithOAuth({
       provider: 'google',
@@ -279,6 +283,7 @@ export function AuthProvider({ children }) {
   const resetPassword = async (email) => {
     setError(null);
     const client = assertClient();
+    if (!client) throw new Error('Supabase client not available. Check environment variables.');
 
     const { error: resetError } = await client.auth.resetPasswordForEmail(email, {
       redirectTo: getAuthRedirectUrl('/login'),
@@ -296,6 +301,7 @@ export function AuthProvider({ children }) {
   const signOut = async () => {
     setError(null);
     const client = assertClient();
+    if (!client) throw new Error('Supabase client not available. Check environment variables.');
 
     const { error: signOutError } = await client.auth.signOut();
 

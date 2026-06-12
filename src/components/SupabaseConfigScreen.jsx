@@ -30,10 +30,10 @@ export default function SupabaseConfigScreen() {
           Authentication cannot run without valid environment variables. The app was trying to use a placeholder URL.
         </p>
         <ol style={{ fontSize: '14px', color: 'var(--text-secondary)', lineHeight: 1.7, paddingLeft: '20px', marginBottom: '20px' }}>
-          <li>Copy <code>.env.local.example</code> to <code>.env</code></li>
+          <li>Copy <code>.env.local.example</code> to <code>.env.local</code> (do NOT commit)</li>
           <li>Add your <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code></li>
           <li>Restart <code>npm run dev</code></li>
-          <li>For Vercel, set the same variables in Project Settings → Environment Variables</li>
+          <li>For hosting (Vercel/Netlify), set the same variables in Project Settings → Environment Variables</li>
         </ol>
         <p style={{ fontSize: '13px', color: 'var(--text-muted)' }}>
           <Link to="/" style={{ color: 'var(--accent, #5f6f3f)', fontWeight: 600 }}>
