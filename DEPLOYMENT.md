@@ -35,3 +35,21 @@ Frontend
 Notes
 - The Edge Function includes an in-memory rate limiter — in production use a shared store (Redis).
 - Demo mode is used when no AI keys are present; mock responses are returned and errors are never shown directly to users.
+
+Agent Processing
+- Secure server endpoint (Vercel): `api/agents/process.ts` — requires `AGENT_SIGNING_KEY` header signature and `SUPABASE_SERVICE_ROLE` env.
+- Supabase Edge Function: `supabase/functions/agents-run` — requires `AGENT_SIGNING_KEY` env and `SUPABASE_SERVICE_ROLE`.
+- To trigger processing from CI/cron, compute HMAC-SHA256 of body using `AGENT_SIGNING_KEY` and include as header `x-signature`.
+
+Example trigger (node):
+```js
+const crypto = require('crypto');
+const body = JSON.stringify({ limit: 50 });
+const sig = crypto.createHmac('sha256', process.env.AGENT_SIGNING_KEY).update(body).digest('hex');
+fetch('https://your-site.com/api/agents/process', { method: 'POST', headers: { 'content-type': 'application/json', 'x-signature': sig }, body });
+```
+
+Scheduling
+- For Supabase: use `supabase functions deploy` and schedule via external cron to POST with signature, or use Supabase's scheduled functions feature where available.
+- We recommend running the agents every 6 hours.
+

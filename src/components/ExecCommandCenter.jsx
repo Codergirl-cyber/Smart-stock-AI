@@ -11,8 +11,22 @@ export default function ExecCommandCenter() {
   const run = async () => {
     setRunning(true);
     try {
-      await agents.runAgentsOnce(user?.id);
-      await agents.processPendingTasks(user?.id);
+      // Try server-side secured endpoint first
+      try {
+        const res = await fetch('/api/agents/process', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ limit: 50 }) });
+        if (res.ok) {
+          const j = await res.json();
+          console.log('server processed', j);
+        } else {
+          // fallback to client-side processing for demo
+          await agents.runAgentsOnce(user?.id);
+          await agents.processPendingTasks(user?.id);
+        }
+      } catch (e) {
+        // network or auth issue; fallback to client-side
+        await agents.runAgentsOnce(user?.id);
+        await agents.processPendingTasks(user?.id);
+      }
     } catch (e) { console.error(e); }
     setRunning(false);
   };
