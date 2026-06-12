@@ -7,6 +7,7 @@ import { motion } from "framer-motion";
 import { ShoppingBag, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import AIRecommendations from "./components/AIRecommendations";
 import AIInventoryCopilot from "./components/AIInventoryCopilot";
+import AIBusinessReportWidget from "./components/AIBusinessReport";
 
 function getLast7Days() {
     const days = [];
@@ -163,8 +164,9 @@ const Dashboard = () => {
                 <p className="subheading" style={{ marginTop: "8px" }}>Your business performance at a glance.</p>
             </header>
 
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: '16px', marginBottom: '20px' }}>
                 <AIInventoryCopilot />
+                <AIBusinessReportWidget />
             </div>
 
             {!loading && insights.length > 0 && (
