@@ -56,7 +56,7 @@ function PublicOnlyRoute({ children }) {
 }
 
 export default function App() {
-  const { isAuthenticated, initializing, isConfigured } = useAuth();
+  const { initializing, isConfigured } = useAuth();
 
   if (!isConfigured) {
     return <SupabaseConfigScreen />;

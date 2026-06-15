@@ -28,17 +28,32 @@ export default function AIBusinessReportWidget() {
     try {
       const r = await generateBusinessReport(user?.id);
       setReport(r);
-      try { localStorage.setItem('lastAnalysis', r.generatedAt); } catch (e) {}
-    } catch (e) {
-      console.error('analysis error', e);
-    } finally { setLoading(false); }
+      try {
+        localStorage.setItem('lastAnalysis', r.generatedAt);
+      } catch {
+        // Ignore storage failures in demo mode.
+      }
+    } catch (err) {
+      console.error('analysis error', err);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => {
-    if (!user) return;
-    if (!report && !loading) {
-      runAnalysis();
-    }
+    if (!user || report || loading) return;
+    const abortController = new AbortController();
+    const scheduleAnalysis = () => {
+      if (!abortController.signal.aborted) {
+        runAnalysis();
+      }
+    };
+
+    const timer = window.setTimeout(scheduleAnalysis, 0);
+    return () => {
+      abortController.abort();
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, report, loading]);
 

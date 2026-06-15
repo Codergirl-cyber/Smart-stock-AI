@@ -31,7 +31,7 @@ function getTopProducts(orders, limit = 5) {
     const sales = {};
     orders.forEach((o) => {
         const name = o.product_name || "Unknown";
-        sales[name] = (sales[name] || 0) + (Number(o.price) || 0);
+        sales[name] = (sales[name] || 0) + ((Number(o.price) * (Number(o.quantity) || 1)) || 0);
     });
     return Object.entries(sales)
         .map(([name, revenue]) => ({ name, revenue }))
@@ -61,14 +61,14 @@ const Dashboard = () => {
                 const [ordersRes, productsRes, transRes] = await Promise.all([
                     supabase.from("orders").select("id, customer_name, product_name, price, payment_status, delivery_status, order_date").eq("user_id", user.id).order("order_date", { ascending: false }),
                     supabase.from("products").select("id, name, stock").eq("user_id", user.id),
-                    supabase.from("transactions").select("amount, type, created_at").eq("user_id", user.id)
+                    supabase.from("transactions").select("amount, type, created_at, status").eq("user_id", user.id)
                 ]);
 
                 const transactions = transRes.data || [];
                 const orders = ordersRes.data || [];
                 const products = productsRes.data || [];
 
-                const revenue = transactions.reduce(
+                const revenue = transactions.filter(t => t.status === "success").reduce(
                     (acc, t) => (t.type === "sale" || t.type === "credit" ? acc + (t.amount || 0) : acc - (t.amount || 0)),
                     0
                 );
@@ -91,7 +91,7 @@ const Dashboard = () => {
                 const dayKeys = getLast7Days();
                 const salesByDay = Object.fromEntries(dayKeys.map((d) => [d, 0]));
                 transactions.forEach((t) => {
-                    if ((t.type === "sale" || t.type === "credit") && t.created_at) {
+                    if (t.status === "success" && (t.type === "sale" || t.type === "credit") && t.created_at) {
                         const day = t.created_at.split("T")[0];
                         if (day in salesByDay) salesByDay[day] += t.amount || 0;
                     }
@@ -213,7 +213,7 @@ const Dashboard = () => {
                 )}
             </header>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 420px', gap: '16px', marginBottom: '20px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '16px', marginBottom: '20px' }}>
                 <AIInventoryCopilot />
                 <AIBusinessReportWidget />
             </div>

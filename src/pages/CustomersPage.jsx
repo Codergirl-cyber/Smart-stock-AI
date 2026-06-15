@@ -25,7 +25,7 @@ function aggregateCustomers(orders) {
     }
     const customer = map.get(name);
     customer.orders.push(order);
-    customer.totalSpent += Number(order.price) || 0;
+    customer.totalSpent += (Number(order.price) * (Number(order.quantity) || 1)) || 0;
     if (order.payment_status === "paid") customer.paidCount += 1;
     if (order.delivery_status === "pending") customer.pendingDelivery += 1;
     if (order.ig_username && !customer.ig_username) customer.ig_username = order.ig_username;

@@ -1,3 +1,4 @@
+/* global process */
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -100,8 +101,6 @@ async function seedSalesHistory(userId, products) {
   const now = new Date();
   const startDate = addDays(now, -59);
   const customerNames = ['Asha', 'Ravi', 'Priya', 'Kunal', 'Nisha', 'Arun', 'Mira', 'Dev', 'Sofia', 'Jai'];
-  const statuses = ['paid', 'unpaid'];
-  const deliveryStatuses = ['delivered', 'pending', 'shipped'];
   const highVelocity = products.slice(0, 5);
   const mediumVelocity = products.slice(5, 12);
   const slowVelocity = products.slice(12);

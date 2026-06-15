@@ -84,11 +84,18 @@ export default function AIInventoryCopilot() {
   };
 
   useEffect(() => {
-    if (!user) return;
-    if (history.length === 0 && !loading) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      sendQuestion('Which products should I restock?');
-    }
+    if (!user || history.length > 0 || loading) return;
+    const abortController = new AbortController();
+    const trigger = () => {
+      if (!abortController.signal.aborted) {
+        sendQuestion('Which products should I restock?');
+      }
+    };
+    const timer = window.setTimeout(trigger, 0);
+    return () => {
+      abortController.abort();
+      window.clearTimeout(timer);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user, history.length, loading]);
 

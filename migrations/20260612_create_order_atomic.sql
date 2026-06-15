@@ -6,7 +6,7 @@ declare
   item json;
   prod record;
 begin
-  insert into public.orders (user_id, customer_name, order_date) values (p_user_id, p_customer_name, now()) returning id into new_order_id;
+insert into public.orders (user_id, customer_name, order_date) values (p_user_id, p_customer_name, now()) returning public.orders.id into new_order_id;
   for item in select * from json_array_elements(p_items) loop
     select * into prod from public.products where id = (item->>'product_id')::uuid for update;
     if prod.stock < (item->>'quantity')::int then

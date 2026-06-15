@@ -33,8 +33,18 @@ export async function getDemandForecast(productId?: string) {
   try {
     if (r && r.text && r.text.trim().startsWith('{')) return JSON.parse(r.text);
   } catch (e) {}
-  // fallback deterministic demo
-  return { productId, history: Array(30).fill(0).map((_,i)=>Math.max(0, Math.round(Math.sin(i/5)*5 + 10))), next7DayForecast: 70, next30DayForecast: 220, avgDaily: 3 };
+  // fallback deterministic demo with jitter noise
+  return {
+    productId,
+    history: Array(30).fill(0).map((_, i) => {
+      const base = Math.max(0, Math.round(Math.sin(i / 5) * 5 + 10));
+      const jitter = Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
+      return Math.max(0, base + jitter);
+    }),
+    next7DayForecast: 73,
+    next30DayForecast: 228,
+    avgDaily: 3.2
+  };
 }
 
 export async function getRestockRecommendations() {

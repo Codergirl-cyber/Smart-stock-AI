@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getDemandForecast } from '../../services/ai/demandForecast';
 import { Button } from './UI';
+import { useAuth } from '../hooks/useAuth';
 
 function MiniLineChart({ history = [], forecast = [] }) {
   // render simple SVG line chart combining history and forecast
@@ -25,6 +26,7 @@ function MiniLineChart({ history = [], forecast = [] }) {
 }
 
 export default function AIDemandForecast({ productId, onClose }) {
+  const { user } = useAuth();
   const [forecast, setForecast] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -33,7 +35,7 @@ export default function AIDemandForecast({ productId, onClose }) {
     (async () => {
       setLoading(true);
       try {
-        const f = await getDemandForecast(productId);
+        const f = await getDemandForecast(productId, user?.id);
         if (!mounted) return;
         setForecast(f);
       } catch (e) {
@@ -43,7 +45,7 @@ export default function AIDemandForecast({ productId, onClose }) {
       }
     })();
     return () => { mounted = false; };
-  }, [productId]);
+  }, [productId, user]);
 
   if (loading) return <div className="panel-card">Loading forecast…</div>;
   if (!forecast) return <div className="panel-card">No forecast available.</div>;

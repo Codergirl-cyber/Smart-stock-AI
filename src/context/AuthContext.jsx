@@ -56,7 +56,7 @@ export function AuthProvider({ children }) {
     }
 
     try {
-      const { data, error: validateError } = await supabase.auth.getUser();
+      const { error: validateError } = await supabase.auth.getUser();
       
       if (validateError) {
         authDebug('session validation failed', validateError.message);

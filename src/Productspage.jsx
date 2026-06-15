@@ -117,7 +117,11 @@ export default function ProductsPage() {
                 setProducts((prev) => prev.map((p) => (p.id === editingId ? data[0] : p)));
                 showToast("Product updated.", "success");
                 // Notify other parts of the app that inventory changed
-                try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
+                try {
+                    window.dispatchEvent(new Event('sellersync-data-changed'));
+                } catch (err) {
+                    console.warn('Event dispatch failed', err);
+                }
             } else {
                 const { data, error } = await supabase
                     .from("products")
@@ -127,7 +131,11 @@ export default function ProductsPage() {
                 if (error) throw error;
                 setProducts((prev) => [data[0], ...prev]);
                 showToast("Product added.", "success");
-                try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
+                try {
+                    window.dispatchEvent(new Event('sellersync-data-changed'));
+                } catch (err) {
+                    console.warn('Event dispatch failed', err);
+                }
             }
 
             closeForm();

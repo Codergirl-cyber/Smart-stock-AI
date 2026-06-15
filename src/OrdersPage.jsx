@@ -111,7 +111,7 @@ export default function OrdersPage() {
             }
 
             // Create order and update stock atomically via RPC (returns error on insufficient stock)
-            const { data: rpcData, error } = await supabase.rpc(
+            const { error } = await supabase.rpc(
                 "create_order_atomic",
                 {
                     p_product_id: selectedProductId,
@@ -154,7 +154,7 @@ export default function OrdersPage() {
             });
             setSelectedProductId("");
             // notify dashboard and other views to refresh
-            try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch {}
+            tryDispatchEvent();
         } catch (err) {
             console.error(err);
             showToast(err.message || "Failed to complete order. Check stock and try again.", "error");
@@ -179,7 +179,16 @@ export default function OrdersPage() {
             setOrders(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
             showToast("Order updated.", "success");
         } catch (err) {
-            showToast(err.message, "error");
+            console.error(err);
+            showToast(err.message || "Failed to update order.", "error");
+        }
+    };
+
+    const tryDispatchEvent = () => {
+        try {
+            window.dispatchEvent(new Event('sellersync-data-changed'));
+        } catch (err) {
+            console.warn('Event dispatch failed', err);
         }
     };
 

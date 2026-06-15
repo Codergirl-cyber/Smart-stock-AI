@@ -164,7 +164,7 @@ begin
   -- create order
   insert into public.orders(id, user_id, customer_name, product_name, product_id, quantity, price, payment_status, delivery_status, order_date, created_at, updated_at)
   values (gen_random_uuid(), p_user_id, p_customer_name, v_product_name, p_product_id, p_quantity, p_price, p_payment_status, p_delivery_status, current_date, now(), now())
-  returning id into v_order_id;
+returning public.orders.id into v_order_id;
 
   -- insert order_items
   insert into public.order_items(id, order_id, product_id, quantity)
