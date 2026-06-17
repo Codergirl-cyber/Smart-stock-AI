@@ -7,11 +7,11 @@ create index if not exists idx_inventory_logs_product on public.inventory_logs (
 -- RLS policies: simple example allowing authenticated users to insert/select their rows
 -- For agent_tasks, keep policies permissive for demo; tighten in production
 alter table public.agent_tasks enable row level security;
-create policy agent_tasks_authenticated_insert on public.agent_tasks for insert using (true) with check (true);
-create policy agent_tasks_authenticated_select on public.agent_tasks for select using (true);
+create policy agent_tasks_authenticated_insert on public.agent_tasks for insert with check (auth.uid() = user_id);
+create policy agent_tasks_authenticated_select on public.agent_tasks for select using (auth.uid() = user_id);
 
 alter table public.inventory_logs enable row level security;
-create policy inventory_logs_authenticated_insert on public.inventory_logs for insert using (true) with check (true);
-create policy inventory_logs_authenticated_select on public.inventory_logs for select using (true);
+create policy inventory_logs_authenticated_insert on public.inventory_logs for insert with check (auth.uid() = user_id);
+create policy inventory_logs_authenticated_select on public.inventory_logs for select using (auth.uid() = user_id);
 
 -- Rollback: DROP INDEX/ POLICIES statements are provided in separate rollback files
