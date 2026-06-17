@@ -206,9 +206,9 @@ export default function OrdersPage() {
 
     const filtered = orders.filter(o => {
         const matchesSearch = 
-            o.customer_name.toLowerCase().includes(search.toLowerCase()) || 
-            o.ig_username?.toLowerCase().includes(search.toLowerCase()) ||
-            (o.product_name && o.product_name.toLowerCase().includes(search.toLowerCase()));
+            (o.customer_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+            (o.ig_username ?? "").toLowerCase().includes(search.toLowerCase()) ||
+            ((o.product_name ?? "") && (o.product_name ?? "").toLowerCase().includes(search.toLowerCase()));
         
         if (filter === "unpaid") return matchesSearch && o.payment_status === "unpaid";
         if (filter === "pending") return matchesSearch && o.delivery_status === "pending";

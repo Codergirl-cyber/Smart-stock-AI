@@ -161,7 +161,7 @@ export default function ProductsPage() {
         showToast("Product removed.", "info");
     };
 
-    const filtered = products.filter((p) => p.name.toLowerCase().includes(search.toLowerCase()));
+    const filtered = products.filter((p) => (p.name ?? "").toLowerCase().includes(search.toLowerCase()));
 
     return (
         <div className="page-shell">
