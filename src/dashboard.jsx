@@ -1,8 +1,9 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { Link } from "react-router-dom";
 import { supabase } from "./supabase";
 import { useAuth } from "./hooks/useAuth";
 import { Skeleton, springConfig, CountUp } from "./components/UI";
+import SyncBanner from "./components/SyncBanner";
 import { motion } from "framer-motion";
 import { ShoppingBag, AlertTriangle, Package, TrendingUp } from "lucide-react";
 import AIRecommendations from "./components/AIRecommendations";
@@ -11,6 +12,11 @@ import AIBusinessReportWidget from "./components/AIBusinessReport";
 import AgentActivity from "./components/AgentActivity";
 import NotificationsBell from "./components/NotificationsBell";
 import ExecCommandCenter from "./components/ExecCommandCenter";
+import {
+  readDashboardCache,
+  writeDashboardCache,
+  touchDashboardCache,
+} from "./services/dashboardCache";
 
 function getLast7Days() {
     const days = [];
@@ -39,6 +45,89 @@ function getTopProducts(orders, limit = 5) {
         .slice(0, limit);
 }
 
+/**
+ * Derive a full dashboard snapshot from raw DB result sets.
+ * Extracted so it can be used both in initial fetch and background sync.
+ */
+function deriveSnapshot(orders, products, transactions) {
+    const revenue = transactions.filter(t => t.status === "success").reduce(
+        (acc, t) => (t.type === "sale" || t.type === "credit" ? acc + (t.amount || 0) : acc - (t.amount || 0)),
+        0
+    );
+    const ordersCount   = orders.length;
+    const productsCount = products.length;
+    const pendingCount  = orders.filter(o => o.delivery_status === "pending").length;
+    const unpaidCount   = orders.filter(o => o.payment_status === "unpaid").length;
+    const lowStock = products.filter(p => {
+        const reorder = Number(p.reorder_level ?? 2);
+        return Number(p.stock ?? 0) <= reorder;
+    });
+
+    const stats = [
+        { label: "Revenue",  value: revenue,       prefix: "Rs " },
+        { label: "Orders",   value: ordersCount },
+        { label: "Products", value: productsCount },
+        { label: "Pending",  value: pendingCount },
+    ];
+
+    const dayKeys = getLast7Days();
+    const salesByDay = Object.fromEntries(dayKeys.map(d => [d, 0]));
+    transactions.forEach(t => {
+        if (t.status === "success" && (t.type === "sale" || t.type === "credit") && t.created_at) {
+            const day = t.created_at.split("T")[0];
+            if (day in salesByDay) salesByDay[day] += t.amount || 0;
+        }
+    });
+    const chartData = dayKeys.map(date => ({ date, amount: salesByDay[date] }));
+
+    const recentActivity = orders.slice(0, 6).map(o => ({
+        id: o.id,
+        type: "order",
+        title: o.customer_name,
+        subtitle: o.product_name || "Order",
+        date: o.order_date,
+        meta: `${o.payment_status} · ${o.delivery_status}`,
+        amount: o.price,
+    }));
+
+    const topProducts = getTopProducts(orders);
+
+    const pricesByDate = dayKeys.map(date => salesByDay[date]);
+    const weekendOrders = orders.filter(o => {
+        const day = new Date(o.order_date).getDay();
+        return day === 0 || day === 6;
+    }).length;
+    const weekdayOrders = orders.length - weekendOrders;
+    const weekendRatio = weekdayOrders === 0 ? 2.3 : Number(((weekendOrders / 2) / Math.max(1, weekdayOrders / 5)).toFixed(1));
+    const prevWeek   = pricesByDate.slice(0, 7).reduce((a, b) => a + b, 0);
+    const recentWeek = pricesByDate.slice(7).reduce((a, b) => a + b, 0);
+    const trendValue = prevWeek === 0 ? (recentWeek > 0 ? 24 : 0) : Math.round(((recentWeek - prevWeek) / Math.max(1, prevWeek)) * 100);
+    const topProductName = topProducts[0]?.name || 'Top SKU';
+
+    const forecastSummary = {
+        trend: `${trendValue >= 0 ? '+' : ''}${trendValue}%`,
+        weekend: `Weekend demand is ${weekendRatio.toFixed(1)}x higher.`,
+        stockouts: lowStock.length,
+        headline: `${topProductName} is driving demand this week.`,
+    };
+
+    const insights = [];
+    if (unpaidCount > 0) {
+        insights.push({ type: "warning", message: `${unpaidCount} order${unpaidCount > 1 ? "s" : ""} awaiting payment.`, link: "/orders", linkLabel: "Review orders" });
+    }
+    if (lowStock.length > 0) {
+        insights.push({ type: "warning", message: `${lowStock.length} product${lowStock.length > 1 ? "s" : ""} low on stock.`, link: "/products", linkLabel: "Update inventory" });
+    }
+
+    return { stats, chartData, recentActivity, topProducts, forecastSummary, insights };
+}
+
+/** Quick equality check on two snapshots via JSON */
+function snapshotsAreEqual(a, b) {
+    if (!a || !b) return false;
+    try { return JSON.stringify(a) === JSON.stringify(b); } catch { return false; }
+}
+
 const Dashboard = () => {
     const [stats, setStats] = useState([]);
     const [chartData, setChartData] = useState([]);
@@ -49,155 +138,139 @@ const Dashboard = () => {
     const [loading, setLoading] = useState(true);
     const demoMode = import.meta.env.VITE_DEMO_MODE === 'true';
 
+    // Sync-banner
+    const [staleBanner, setStaleBanner] = useState(false);
+    const [applyingSyncData, setApplyingSyncData] = useState(false);
+    const freshSnapshotRef = useRef(null);
+
     const { user } = useAuth();
 
-    const fetchStats = async () => {
-        if (!user) {
-            setLoading(false);
-            return;
-        }
+    // ─── Apply a snapshot to all state slices ────────────────────────────────
 
-        try {
-                const [ordersRes, productsRes, transRes] = await Promise.all([
-                    supabase.from("orders").select("id, customer_name, product_name, price, payment_status, delivery_status, order_date").eq("user_id", user.id).order("order_date", { ascending: false }),
-                    supabase.from("products").select("id, name, stock").eq("user_id", user.id),
-                    supabase.from("transactions").select("amount, type, created_at, status").eq("user_id", user.id)
-                ]);
-
-                const transactions = transRes.data || [];
-                const orders = ordersRes.data || [];
-                const products = productsRes.data || [];
-
-                const revenue = transactions.filter(t => t.status === "success").reduce(
-                    (acc, t) => (t.type === "sale" || t.type === "credit" ? acc + (t.amount || 0) : acc - (t.amount || 0)),
-                    0
-                );
-                const ordersCount = orders.length;
-                const productsCount = products.length;
-                const pendingCount = orders.filter((o) => o.delivery_status === "pending").length;
-                const unpaidCount = orders.filter((o) => o.payment_status === "unpaid").length;
-                const lowStock = products.filter((p) => {
-                    const reorder = Number(p.reorder_level ?? 2);
-                    return Number(p.stock ?? 0) <= reorder;
-                });
-
-                setStats([
-                    { label: "Revenue", value: revenue, prefix: "Rs " },
-                    { label: "Orders", value: ordersCount },
-                    { label: "Products", value: productsCount },
-                    { label: "Pending", value: pendingCount },
-                ]);
-
-                const dayKeys = getLast7Days();
-                const salesByDay = Object.fromEntries(dayKeys.map((d) => [d, 0]));
-                transactions.forEach((t) => {
-                    if (t.status === "success" && (t.type === "sale" || t.type === "credit") && t.created_at) {
-                        const day = t.created_at.split("T")[0];
-                        if (day in salesByDay) salesByDay[day] += t.amount || 0;
-                    }
-                });
-                setChartData(dayKeys.map((date) => ({ date, amount: salesByDay[date] })));
-
-                setRecentActivity(
-                    orders.slice(0, 6).map((o) => ({
-                        id: o.id,
-                        type: "order",
-                        title: o.customer_name,
-                        subtitle: o.product_name || "Order",
-                        date: o.order_date,
-                        meta: `${o.payment_status} · ${o.delivery_status}`,
-                        amount: o.price,
-                    }))
-                );
-
-                const currentTopProducts = getTopProducts(orders);
-                setTopProducts(currentTopProducts);
-
-                const pricesByDate = dayKeys.map((date) => salesByDay[date]);
-                const weekendOrders = orders.filter((o) => {
-                    const day = new Date(o.order_date).getDay();
-                    return day === 0 || day === 6;
-                }).length;
-                const weekdayOrders = orders.length - weekendOrders;
-                const weekendRatio = weekdayOrders === 0 ? 2.3 : Number(((weekendOrders / 2) / Math.max(1, weekdayOrders / 5)).toFixed(1));
-                const prevWeek = pricesByDate.slice(0, 7).reduce((a, b) => a + b, 0);
-                const recentWeek = pricesByDate.slice(7).reduce((a, b) => a + b, 0);
-                const trendValue = prevWeek === 0 ? (recentWeek > 0 ? 24 : 0) : Math.round(((recentWeek - prevWeek) / Math.max(1, prevWeek)) * 100);
-                const topProductName = currentTopProducts[0]?.name || 'Top SKU';
-
-                setForecastSummary({
-                    trend: `${trendValue >= 0 ? '+' : ''}${trendValue}%`,
-                    weekend: `Weekend demand is ${weekendRatio.toFixed(1)}x higher.`,
-                    stockouts: lowStock.length,
-                    headline: `${topProductName} is driving demand this week.`,
-                });
-
-                const nextInsights = [];
-                if (unpaidCount > 0) {
-                    nextInsights.push({
-                        type: "warning",
-                        message: `${unpaidCount} order${unpaidCount > 1 ? "s" : ""} awaiting payment.`,
-                        link: "/orders",
-                        linkLabel: "Review orders",
-                    });
-                }
-                if (lowStock.length > 0) {
-                    nextInsights.push({
-                        type: "warning",
-                        message: `${lowStock.length} product${lowStock.length > 1 ? "s" : ""} low on stock.`,
-                        link: "/products",
-                        linkLabel: "Update inventory",
-                    });
-                }
-                setInsights(nextInsights);
-            } catch (err) {
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
+    const applySnapshot = (snap) => {
+        setStats(snap.stats);
+        setChartData(snap.chartData);
+        setRecentActivity(snap.recentActivity);
+        setTopProducts(snap.topProducts);
+        setForecastSummary(snap.forecastSummary);
+        setInsights(snap.insights);
     };
 
-    // Initial fetch and subscribe to global data-change events so dashboard updates immediately
+    // ─── Cache-first load ────────────────────────────────────────────────────
+
+    const loadFromCache = () => {
+        if (!user) return false;
+        const cached = readDashboardCache(user.id);
+        if (cached) {
+            applySnapshot(cached.snapshot);
+            setLoading(false);
+            return true;
+        }
+        return false;
+    };
+
+    const syncFromDB = async (force = false) => {
+        if (!user) return;
+        try {
+            const [ordersRes, productsRes, transRes] = await Promise.all([
+                supabase.from("orders").select("id, customer_name, product_name, price, quantity, payment_status, delivery_status, order_date").eq("user_id", user.id).order("order_date", { ascending: false }),
+                supabase.from("products").select("id, name, stock, reorder_level").eq("user_id", user.id),
+                supabase.from("transactions").select("amount, type, created_at, status").eq("user_id", user.id),
+            ]);
+
+            const orders       = ordersRes.data   || [];
+            const products     = productsRes.data  || [];
+            const transactions = transRes.data     || [];
+
+            const freshSnap = deriveSnapshot(orders, products, transactions);
+
+            if (force) {
+                applySnapshot(freshSnap);
+                writeDashboardCache(user.id, freshSnap);
+                setStaleBanner(false);
+                return;
+            }
+
+            const cached = readDashboardCache(user.id);
+            if (cached && snapshotsAreEqual(cached.snapshot, freshSnap)) {
+                touchDashboardCache(user.id);
+            } else if (!cached) {
+                applySnapshot(freshSnap);
+                writeDashboardCache(user.id, freshSnap);
+            } else {
+                freshSnapshotRef.current = freshSnap;
+                setStaleBanner(true);
+            }
+        } catch (err) {
+            console.warn("[Dashboard] Background sync failed:", err.message);
+        }
+    };
+
+    const handleApplySync = async () => {
+        setApplyingSyncData(true);
+        if (freshSnapshotRef.current) {
+            applySnapshot(freshSnapshotRef.current);
+            writeDashboardCache(user.id, freshSnapshotRef.current);
+            freshSnapshotRef.current = null;
+            setStaleBanner(false);
+            setApplyingSyncData(false);
+        } else {
+            await syncFromDB(true);
+            setApplyingSyncData(false);
+        }
+    };
+
+    // ─── Mount effect + event listener ──────────────────────────────────────
+
     useEffect(() => {
-        // eslint-disable-next-line react-hooks/set-state-in-effect
-        fetchStats();
-        const handler = () => {
+        if (!user) { setLoading(false); return; }
+
+        const cacheHit = loadFromCache();
+        if (!cacheHit) {
             setLoading(true);
-            fetchStats();
-        };
+            syncFromDB(true).finally(() => setLoading(false));
+        } else {
+            syncFromDB(false);
+        }
+
+        // Re-sync when orders/products change (triggered by other pages)
+        const handler = () => syncFromDB(true);
         window.addEventListener('sellersync-data-changed', handler);
         return () => window.removeEventListener('sellersync-data-changed', handler);
-    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
+
+    // ─── Demo / render helpers ───────────────────────────────────────────────
 
     const demoChartData = [
-        { date: getLast7Days()[0], amount: 7800 },
-        { date: getLast7Days()[1], amount: 9400 },
-        { date: getLast7Days()[2], amount: 8600 },
+        { date: getLast7Days()[0], amount: 7800  },
+        { date: getLast7Days()[1], amount: 9400  },
+        { date: getLast7Days()[2], amount: 8600  },
         { date: getLast7Days()[3], amount: 10200 },
-        { date: getLast7Days()[4], amount: 9400 },
+        { date: getLast7Days()[4], amount: 9400  },
         { date: getLast7Days()[5], amount: 10800 },
         { date: getLast7Days()[6], amount: 11200 },
     ];
 
-    const chartDataToRender = !loading && chartData.every((d) => d.amount === 0) && demoMode ? demoChartData : chartData;
+    const chartDataToRender = !loading && chartData.every(d => d.amount === 0) && demoMode ? demoChartData : chartData;
 
     const demoTopProducts = [
         { name: 'Executive Notebook', revenue: 14200 },
-        { name: 'Premium Pen Set', revenue: 9800 },
-        { name: 'Wireless Charger', revenue: 7600 },
-        { name: 'Desk Organizer', revenue: 5200 },
-        { name: 'Coffee Mug', revenue: 4400 },
+        { name: 'Premium Pen Set',    revenue:  9800 },
+        { name: 'Wireless Charger',   revenue:  7600 },
+        { name: 'Desk Organizer',     revenue:  5200 },
+        { name: 'Coffee Mug',         revenue:  4400 },
     ];
 
     const topProductsToRender = !loading && topProducts.length === 0 && demoMode ? demoTopProducts : topProducts;
 
     const chartMax = useMemo(
-        () => Math.max(...chartDataToRender.map((d) => d.amount), 1),
+        () => Math.max(...chartDataToRender.map(d => d.amount), 1),
         [chartDataToRender]
     );
 
     const topMax = useMemo(
-        () => Math.max(...topProductsToRender.map((p) => p.revenue), 1),
+        () => Math.max(...topProductsToRender.map(p => p.revenue), 1),
         [topProductsToRender]
     );
 
@@ -218,6 +291,15 @@ const Dashboard = () => {
                 <AIBusinessReportWidget />
             </div>
 
+            {/* Sync Banner */}
+            <SyncBanner
+                visible={staleBanner}
+                syncing={applyingSyncData}
+                message="Dashboard data has been updated — click Apply to refresh your stats."
+                onApply={handleApplySync}
+                onDismiss={() => setStaleBanner(false)}
+            />
+
             {!loading && insights.length > 0 && (
                 <div style={{ display: "flex", flexDirection: "column", gap: "10px", marginBottom: "28px" }}>
                     {insights.map((item, i) => (
@@ -234,9 +316,9 @@ const Dashboard = () => {
                 </div>
             )}
 
-            <motion.div 
-                initial="hidden" 
-                animate="visible" 
+            <motion.div
+                initial="hidden"
+                animate="visible"
                 variants={{ visible: { transition: { staggerChildren: 0.05 } } }}
                 style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(170px, 1fr))", gap: "16px", marginBottom: "48px" }}
             >
@@ -246,7 +328,7 @@ const Dashboard = () => {
                         <div className="skeleton" style={{ width: "100px", height: "28px" }} />
                     </div>
                 )) : stats.map((s, i) => (
-                    <motion.div 
+                    <motion.div
                         key={i}
                         className="stat-card"
                         initial={{ opacity: 0, y: 10 }}
@@ -291,7 +373,7 @@ const Dashboard = () => {
                 <AgentActivity />
             </div>
 
-            <motion.div 
+            <motion.div
                 style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(280px, 1fr))", gap: "24px", marginBottom: "24px" }}
             >
                 <div className="panel-card">
@@ -303,7 +385,7 @@ const Dashboard = () => {
                                 <div key={i} className="skeleton" style={{ flex: 1, height: "60%" }} />
                             ))}
                         </div>
-                    ) : chartDataToRender.every((d) => d.amount === 0) ? (
+                    ) : chartDataToRender.every(d => d.amount === 0) ? (
                         <div className="body" style={{ color: "var(--text-muted)", textAlign: "center", padding: "48px 16px", border: "1px dashed var(--border)", borderRadius: "var(--radius-md)" }}>
                             No sales recorded in the last 7 days.
                         </div>
@@ -314,24 +396,24 @@ const Dashboard = () => {
                                     const heightPct = Math.max(8, (day.amount / chartMax) * 100);
                                     const isPeak = day.amount === chartMax && day.amount > 0;
                                     return (
-                                        <motion.div 
+                                        <motion.div
                                             key={day.date}
                                             initial={{ height: 0 }}
                                             animate={{ height: `${heightPct}%` }}
                                             transition={{ duration: 0.6, delay: i * 0.05, ease: "easeOut" }}
                                             title={`Rs ${day.amount.toLocaleString()}`}
-                                            style={{ 
-                                                flex: 1, 
-                                                background: isPeak ? "linear-gradient(180deg, var(--accent), var(--accent-hover))" : "var(--surface-hover)", 
+                                            style={{
+                                                flex: 1,
+                                                background: isPeak ? "linear-gradient(180deg, var(--accent), var(--accent-hover))" : "var(--surface-hover)",
                                                 borderRadius: "2px 2px 0 0",
                                                 minHeight: "4px",
-                                            }} 
+                                            }}
                                         />
                                     );
                                 })}
                             </div>
                             <div style={{ display: "flex", gap: "10px", marginTop: "10px" }}>
-                                {chartDataToRender.map((day) => (
+                                {chartDataToRender.map(day => (
                                     <span key={day.date} className="caption" style={{ flex: 1, textAlign: "center", fontSize: "10px" }}>
                                         {formatDayLabel(day.date)}
                                     </span>
@@ -353,7 +435,7 @@ const Dashboard = () => {
                         <p className="body" style={{ color: "var(--text-muted)", fontSize: "13px" }}>No product sales yet.</p>
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                            {topProductsToRender.map((p) => (
+                            {topProductsToRender.map(p => (
                                 <div key={p.name}>
                                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px", fontSize: "13px" }}>
                                         <span style={{ fontWeight: "600" }}>{p.name}</span>
@@ -382,7 +464,7 @@ const Dashboard = () => {
                     </div>
                 ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-                        {recentActivity.map((item) => (
+                        {recentActivity.map(item => (
                             <div key={item.id} className="activity-row">
                                 <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
                                     <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: "var(--accent-soft)", display: "flex", alignItems: "center", justifyContent: "center" }}>
