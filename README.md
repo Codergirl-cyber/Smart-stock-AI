@@ -14,6 +14,7 @@ Built as a full-stack web application with authentication, inventory management,
 ---
 
 
+![Uploading image.png…]()
 
 
 
