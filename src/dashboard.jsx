@@ -206,7 +206,7 @@ const Dashboard = () => {
             const [ordersRes, productsRes, transRes] = await Promise.all([
                 supabase.from("orders").select("id, customer_name, product_name, price, quantity, payment_status, delivery_status, order_date").eq("user_id", user.id).order("order_date", { ascending: false }),
                 supabase.from("products").select("id, name, stock, reorder_level").eq("user_id", user.id),
-                supabase.from("transactions").select("amount, type, created_at, status").eq("user_id", user.id),
+                supabase.from("transactions").select("amount, type, created_at, status, order_id").eq("user_id", user.id),
             ]);
 
             const orders       = ordersRes.data   || [];
