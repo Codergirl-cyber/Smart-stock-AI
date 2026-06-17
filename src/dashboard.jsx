@@ -45,12 +45,43 @@ function getTopProducts(orders, limit = 5) {
         .slice(0, limit);
 }
 
+function enrichWithOrderStatus(transactions, orders) {
+    if (!orders || orders.length === 0) return transactions;
+    const orderMap = {};
+    orders.forEach(o => { orderMap[o.id] = o; });
+
+    return transactions.map(txn => {
+        if (!txn.order_id) return txn;
+        const linkedOrder = orderMap[txn.order_id];
+        if (!linkedOrder) return txn;
+
+        let updated = { ...txn };
+
+        // Recover amount if the DB stored 0 or null
+        const orderAmount = Number(linkedOrder.price || 0) * (Number(linkedOrder.quantity) || 1);
+        if ((!updated.amount || updated.amount === 0) && orderAmount > 0) {
+            updated.amount = orderAmount;
+        }
+
+        // Sync status with payment_status
+        if (linkedOrder.payment_status === "paid" && updated.status === "pending") {
+            updated.status = "success";
+        } else if (linkedOrder.payment_status === "unpaid" && updated.status === "success") {
+            updated.status = "pending";
+        }
+
+        return updated;
+    });
+}
+
 /**
  * Derive a full dashboard snapshot from raw DB result sets.
  * Extracted so it can be used both in initial fetch and background sync.
  */
 function deriveSnapshot(orders, products, transactions) {
-    const revenue = transactions.filter(t => t.status === "success").reduce(
+    const enrichedTransactions = enrichWithOrderStatus(transactions, orders);
+
+    const revenue = enrichedTransactions.filter(t => t.status === "success").reduce(
         (acc, t) => (t.type === "sale" || t.type === "credit" ? acc + (t.amount || 0) : acc - (t.amount || 0)),
         0
     );
@@ -72,7 +103,7 @@ function deriveSnapshot(orders, products, transactions) {
 
     const dayKeys = getLast7Days();
     const salesByDay = Object.fromEntries(dayKeys.map(d => [d, 0]));
-    transactions.forEach(t => {
+    enrichedTransactions.forEach(t => {
         if (t.status === "success" && (t.type === "sale" || t.type === "credit") && t.created_at) {
             const day = t.created_at.split("T")[0];
             if (day in salesByDay) salesByDay[day] += t.amount || 0;
