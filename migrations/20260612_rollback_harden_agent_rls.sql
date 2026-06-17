@@ -6,17 +6,10 @@ drop policy if exists execution_logs_delete_none on public.agent_execution_logs;
 drop policy if exists execution_logs_insert_service_only on public.agent_execution_logs;
 drop policy if exists execution_logs_select_owner on public.agent_execution_logs;
 
--- Disable RLS on execution_logs
-alter table public.agent_execution_logs disable row level security;
-
--- Drop policies for agent_tasks
 drop policy if exists agent_tasks_delete_owner on public.agent_tasks;
 drop policy if exists agent_tasks_update_owner on public.agent_tasks;
 drop policy if exists agent_tasks_insert_owner on public.agent_tasks;
 drop policy if exists agent_tasks_select_owner on public.agent_tasks;
-
--- Disable RLS on agent_tasks
-alter table public.agent_tasks disable row level security;
 
 -- Drop indexes
 drop index if exists idx_agent_tasks_user_id;
