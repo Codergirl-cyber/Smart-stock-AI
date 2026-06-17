@@ -110,34 +110,38 @@ export default function OrdersPage() {
                 return;
             }
 
-            // Create order and update stock atomically via RPC (returns error on insufficient stock)
-            const { error } = await supabase.rpc(
-                "create_order_atomic",
-                {
-                    p_product_id: selectedProductId,
-                    p_quantity: quantity,
-                    p_price: price,
-                    p_customer_name: newOrder.customer_name,
-                    p_payment_status: newOrder.payment_status,
-                    p_delivery_status: newOrder.delivery_status,
-                    p_ig_username: newOrder.ig_username,
-                    p_user_id: user.id,
-                }
-            );
+            // Simplest order creation: direct insert into orders table (no RPC calls)
+            const selectedProduct = products.find((p) => p.id === selectedProductId);
+            const productName = selectedProduct?.name ?? null;
 
-            if (error) {
-                // Detect insufficient stock error returned by the DB function
-                const msg = String(error.message || error);
-                if (msg.includes('insufficient_stock')) {
-                    // parse available count if present
-                    const m = msg.match(/available=(\d+)/);
-                    const available = m ? Number(m[1]) : null;
-                    showToast(available !== null ? `Insufficient stock. Only ${available} remaining.` : 'Insufficient stock for selected product.', 'error');
-                    return;
-                }
-                throw error;
-            }
+            // Build insert payload from frontend values + selection
+            const insertPayload = {
+                user_id: user.id,
+                customer_name: newOrder.customer_name,
+                ig_username: newOrder.ig_username || null,
+                product_id: selectedProductId,
+                product_name: productName,
+                quantity,
+                price,
+                payment_status: newOrder.payment_status,
+                delivery_status: newOrder.delivery_status,
+                order_date: newOrder.order_date,
+            };
 
+            // Omit null/undefined optional fields so we don't assume nullable columns
+            Object.keys(insertPayload).forEach((k) => {
+                if (insertPayload[k] === undefined || insertPayload[k] === null) delete insertPayload[k];
+            });
+
+            const { data: inserted, error } = await supabase
+                .from("orders")
+                .insert(insertPayload)
+                .select()
+                .single();
+
+            if (error) throw error;
+
+            // Refresh UI (order will appear in dashboard because it's filtered by user_id)
             await fetchOrders();
             await fetchProducts();
             setShowForm(false);
