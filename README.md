@@ -13,6 +13,7 @@ Built as a full-stack web application with authentication, inventory management,
 
 ---
 
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/e14b491e-b6f2-452e-a8c9-59fa837f5d8e" />
 
 
 
