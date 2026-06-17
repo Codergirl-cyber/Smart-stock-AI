@@ -255,31 +255,6 @@ export function AuthProvider({ children }) {
     return data;
   };
 
-  const signInWithGoogle = async () => {
-    setError(null);
-    const client = assertClient();
-    if (!client) throw new Error('Supabase client not available. Check environment variables.');
-
-    const { error: oauthError } = await client.auth.signInWithOAuth({
-      provider: 'google',
-      options: {
-        redirectTo: getAuthRedirectUrl('/dashboard'),
-        queryParams: {
-          access_type: 'offline',
-          prompt: 'consent',
-        },
-      },
-    });
-
-    if (oauthError) {
-      const errorMessage = formatAuthError(oauthError);
-      setError(errorMessage);
-      throw new Error(errorMessage);
-    }
-
-    authDebug('redirect triggered', 'Google OAuth');
-  };
-
   const resetPassword = async (email) => {
     setError(null);
     const client = assertClient();
@@ -327,7 +302,6 @@ export function AuthProvider({ children }) {
     clearError,
     signUp,
     signInWithPassword,
-    signInWithGoogle,
     resetPassword,
     signOut,
     isAuthenticated: !!user && sessionValid,
