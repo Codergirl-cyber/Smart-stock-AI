@@ -13,10 +13,13 @@ insert into public.orders (user_id, customer_name, order_date) values (p_user_id
       raise exception 'insufficient_stock: available=%', prod.stock;
     end if;
     update public.products set stock = stock - (item->>'quantity')::int where id = prod.id;
-    insert into public.order_items (order_id, product_id, product_name, quantity, price) values (new_order_id, prod.id, prod.name, (item->>'quantity')::int, (item->>'price')::numeric);
-    insert into public.inventory_logs (product_id, user_id, change, reason, source) values (prod.id, p_user_id, -((item->>'quantity')::int), 'sale', 'create_order_atomic');
+    insert into public.order_items (order_id, product_id, quantity)
+    values (new_order_id, prod.id, (item->>'quantity')::int);
+
+    insert into public.inventory_logs (product_id, user_id, change, reason, source)
+    values (prod.id, p_user_id, -((item->>'quantity')::int), 'sale', 'create_order_atomic');
   end loop;
   return json_build_object('ok', true, 'order_id', new_order_id);
 end; $$ language plpgsql;
 
-grant execute on function public.create_order_atomic to authenticated;
+grant execute on function public.create_order_atomic(p_user_id uuid, p_customer_name text, p_items json) to authenticated;
