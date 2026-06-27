@@ -1,8 +1,8 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./hooks/useAuth";
 import { Skeleton, Button, Input } from "./components/UI";
-import { Search, Plus, ShoppingBag, AtSign, AlertCircle, X } from "lucide-react";
+import { Search, Plus, ShoppingBag, AtSign, AlertCircle, X, Copy, Check, MessageSquare, Clipboard, ExternalLink, Calendar, Receipt } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./hooks/useToast";
 
@@ -13,11 +13,14 @@ export default function OrdersPage() {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [showForm, setShowForm] = useState(false);
-    const [filter, setFilter] = useState("all");
-    const [selectedCustomer, setSelectedCustomer] = useState(null);
+    const [filter, setFilter] = useState("all"); // all, unpaid, pending
+    const [selectedOrderId, setSelectedOrderId] = useState(null);
 
     const [products, setProducts] = useState([]);
     const [selectedProductId, setSelectedProductId] = useState("");
+    
+    // Notes stored in LocalStorage for order addresses/notes
+    const [orderNotes, setOrderNotes] = useState({});
 
     const [newOrder, setNewOrder] = useState({
         customer_name: "",
@@ -31,8 +34,6 @@ export default function OrdersPage() {
     });
 
     const fetchOrders = useCallback(async () => {
-        await Promise.resolve();
-
         if (!user) {
             setOrders([]);
             setLoading(false);
@@ -41,7 +42,6 @@ export default function OrdersPage() {
 
         try {
             setLoading(true);
-
             const { data, error } = await supabase
                 .from("orders")
                 .select("*")
@@ -59,8 +59,6 @@ export default function OrdersPage() {
     }, [user]);
 
     const fetchProducts = useCallback(async () => {
-        await Promise.resolve();
-
         if (!user) {
             setProducts([]);
             return;
@@ -82,12 +80,29 @@ export default function OrdersPage() {
 
     useEffect(() => {
         if (!user) return;
-        const timer = window.setTimeout(() => {
-            fetchOrders();
-            fetchProducts();
-        }, 0);
-        return () => window.clearTimeout(timer);
+        fetchOrders();
+        fetchProducts();
     }, [user, fetchOrders, fetchProducts]);
+
+    // Load notes from local storage
+    useEffect(() => {
+        try {
+            const saved = localStorage.getItem("sellersync_order_notes");
+            if (saved) setOrderNotes(JSON.parse(saved));
+        } catch (e) {
+            console.warn(e);
+        }
+    }, []);
+
+    const saveNote = (orderId, noteText) => {
+        const next = { ...orderNotes, [orderId]: noteText };
+        setOrderNotes(next);
+        try {
+            localStorage.setItem("sellersync_order_notes", JSON.stringify(next));
+        } catch (e) {
+            console.warn(e);
+        }
+    };
 
     const createOrder = async (e) => {
         e.preventDefault();
@@ -110,11 +125,9 @@ export default function OrdersPage() {
                 return;
             }
 
-            // Simplest order creation: direct insert into orders table (no RPC calls)
             const selectedProduct = products.find((p) => p.id === selectedProductId);
             const productName = selectedProduct?.name ?? null;
 
-            // Build insert payload from frontend values + selection
             const insertPayload = {
                 user_id: user.id,
                 customer_name: newOrder.customer_name,
@@ -128,24 +141,27 @@ export default function OrdersPage() {
                 order_date: newOrder.order_date,
             };
 
-            // Omit null/undefined optional fields so we don't assume nullable columns
             Object.keys(insertPayload).forEach((k) => {
                 if (insertPayload[k] === undefined || insertPayload[k] === null) delete insertPayload[k];
             });
 
-            const { data: inserted, error } = await supabase
+            const { data: insertedList, error } = await supabase
                 .from("orders")
                 .insert(insertPayload)
-                .select()
-                .single();
+                .select();
 
             if (error) throw error;
 
-            // Refresh UI (order will appear in dashboard because it's filtered by user_id)
             await fetchOrders();
             await fetchProducts();
             setShowForm(false);
             showToast("Order created successfully.", "success");
+            
+            // Auto select new order
+            if (insertedList && insertedList.length > 0) {
+                setSelectedOrderId(insertedList[0].id);
+            }
+
             setNewOrder({
                 customer_name: "",
                 ig_username: "",
@@ -157,7 +173,6 @@ export default function OrdersPage() {
                 order_date: new Date().toISOString().split('T')[0]
             });
             setSelectedProductId("");
-            // notify dashboard and other views to refresh
             tryDispatchEvent();
         } catch (err) {
             console.error(err);
@@ -182,6 +197,7 @@ export default function OrdersPage() {
 
             setOrders(prev => prev.map(o => o.id === id ? { ...o, [field]: value } : o));
             showToast("Order updated.", "success");
+            tryDispatchEvent();
         } catch (err) {
             console.error(err);
             showToast(err.message || "Failed to update order.", "error");
@@ -204,171 +220,388 @@ export default function OrdersPage() {
         return diffDays > 3;
     };
 
-    const filtered = orders.filter(o => {
-        const matchesSearch = 
-            (o.customer_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
-            (o.ig_username ?? "").toLowerCase().includes(search.toLowerCase()) ||
-            ((o.product_name ?? "") && (o.product_name ?? "").toLowerCase().includes(search.toLowerCase()));
-        
-        if (filter === "unpaid") return matchesSearch && o.payment_status === "unpaid";
-        if (filter === "pending") return matchesSearch && o.delivery_status === "pending";
-        return matchesSearch;
-    });
+    const filtered = useMemo(() => {
+        return orders.filter(o => {
+            const matchesSearch = 
+                (o.customer_name ?? "").toLowerCase().includes(search.toLowerCase()) ||
+                (o.ig_username ?? "").toLowerCase().includes(search.toLowerCase()) ||
+                ((o.product_name ?? "") && (o.product_name ?? "").toLowerCase().includes(search.toLowerCase()));
+            
+            if (filter === "unpaid") return matchesSearch && o.payment_status === "unpaid";
+            if (filter === "pending") return matchesSearch && o.delivery_status === "pending";
+            return matchesSearch;
+        });
+    }, [orders, search, filter]);
 
-    const customerHistory = selectedCustomer 
-        ? orders.filter(o => o.customer_name === selectedCustomer) 
-        : [];
+    // Auto select first order if none selected
+    useEffect(() => {
+        if (filtered.length > 0 && !selectedOrderId) {
+            setSelectedOrderId(filtered[0].id);
+        }
+    }, [filtered, selectedOrderId]);
+
+    const selectedOrder = useMemo(() => {
+        return orders.find(o => o.id === selectedOrderId) || null;
+    }, [orders, selectedOrderId]);
+
+    const customerHistory = useMemo(() => {
+        if (!selectedOrder) return [];
+        return orders.filter(o => o.customer_name === selectedOrder.customer_name && o.id !== selectedOrder.id);
+    }, [orders, selectedOrder]);
+
+    const handleCopyText = (text, type = "Template") => {
+        navigator.clipboard.writeText(text);
+        showToast(`${type} copied to clipboard!`, "success");
+    };
+
+    // Pre-built Instagram DM Templates
+    const dmTemplates = useMemo(() => {
+        if (!selectedOrder) return {};
+        const cleanName = selectedOrder.customer_name.split(" ")[0];
+        const product = selectedOrder.product_name;
+        const total = (Number(selectedOrder.price) * (Number(selectedOrder.quantity) || 1)).toLocaleString();
+        
+        return {
+            paymentPending: `Hi ${cleanName}! Thanks for your order of the ${product}. Total is Rs ${total}. Please share a screenshot of the payment receipt once transferred so we can secure your stock and ship it! ✨`,
+            paymentReceived: `Hi ${cleanName}! Payment of Rs ${total} received, thank you! 💖 Your order of ${product} is being packaged and will head out shortly. We'll send you tracking details once shipped!`,
+            orderShipped: `Hey ${cleanName}! Good news: your ${product} has been shipped! 🚀 You can track your package details. Let us know when it arrives safely! 📦`
+        };
+    }, [selectedOrder]);
 
     return (
-        <div className="page-shell">
-            <header className="page-header" style={{ marginBottom: "32px" }}>
+        <div className="page-shell" style={{ padding: "24px 32px 48px" }}>
+            <header className="page-header" style={{ marginBottom: "24px" }}>
                 <div>
-                    <h1 className="h1">Order Tracker</h1>
-                    <p className="subheading" style={{ marginTop: "8px" }}>Fast order management for IG sellers.</p>
+                    <h1 className="h1" style={{ fontSize: "22px", fontWeight: "700", color: "var(--text-primary)" }}>Order Tracker Workspace</h1>
+                    <p className="subheading" style={{ marginTop: "4px" }}>A high-efficiency command center for Instagram order logistics.</p>
                 </div>
-                <Button onClick={() => setShowForm(true)} style={{ background: "var(--accent)", color: "white" }}>
-                    <Plus size={16} />
-                    New Order
+                <Button onClick={() => setShowForm(true)} style={{ background: "var(--accent)", color: "white", padding: "8px 14px", borderRadius: "var(--radius-md)" }}>
+                    <Plus size={14} /> New Order
                 </Button>
             </header>
 
-            <div style={{ display: "flex", gap: "12px", marginBottom: "24px", alignItems: "center", flexWrap: "wrap" }}>
-                <div className="premium-search" style={{ flex: 1, minWidth: "200px", margin: 0 }}>
+            {/* Quick stats / filters row */}
+            <div style={{ display: "flex", gap: "10px", marginBottom: "20px", alignItems: "center", flexWrap: "wrap" }}>
+                <div className="premium-search" style={{ flex: 1, minWidth: "240px", margin: 0 }}>
                     <Search size={14} color="var(--text-muted)" />
                     <input 
-                        placeholder="Search name, IG, or product..." 
+                        placeholder="Search name, handle, or product..." 
                         value={search} 
                         onChange={e => setSearch(e.target.value)} 
-                        style={{ background: "transparent", border: "none", color: "var(--text-primary)", outline: "none", fontSize: "14px", flex: 1 }} 
                     />
                 </div>
                 
-                <div style={{ display: "flex", gap: "8px" }}>
-                    <button 
-                        onClick={() => setFilter("all")}
-                        style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: filter === "all" ? "var(--accent-soft)" : "var(--surface)", color: filter === "all" ? "var(--accent)" : "var(--text-secondary)", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-                    >
-                        All
-                    </button>
-                    <button 
-                        onClick={() => setFilter("unpaid")}
-                        style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: filter === "unpaid" ? "rgba(239, 68, 68, 0.1)" : "var(--surface)", color: filter === "unpaid" ? "var(--error)" : "var(--text-secondary)", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-                    >
-                        Unpaid
-                    </button>
-                    <button 
-                        onClick={() => setFilter("pending")}
-                        style={{ padding: "8px 16px", borderRadius: "8px", border: "1px solid var(--border)", background: filter === "pending" ? "rgba(234, 179, 8, 0.1)" : "var(--surface)", color: filter === "pending" ? "var(--warning)" : "var(--text-secondary)", fontSize: "13px", fontWeight: "600", cursor: "pointer" }}
-                    >
-                        Pending Delivery
-                    </button>
+                <div style={{ display: "flex", gap: "6px", background: "var(--bg-secondary)", padding: "4px", borderRadius: "var(--radius-md)", border: "1px solid var(--border-subtle)" }}>
+                    {[
+                        { id: "all", label: "All Orders" },
+                        { id: "unpaid", label: "Awaiting Payment" },
+                        { id: "pending", label: "To Ship" }
+                    ].map(btn => (
+                        <button 
+                            key={btn.id}
+                            onClick={() => { setFilter(btn.id); setSelectedOrderId(null); }}
+                            style={{ 
+                                padding: "6px 12px", 
+                                borderRadius: "var(--radius-sm)", 
+                                border: "none", 
+                                background: filter === btn.id ? "var(--bg-surface)" : "transparent", 
+                                color: filter === btn.id ? "var(--text-primary)" : "var(--text-secondary)", 
+                                fontSize: "12px", 
+                                fontWeight: "600", 
+                                cursor: "pointer",
+                                boxShadow: filter === btn.id ? "var(--shadow-sm)" : "none",
+                                transition: "all 0.15s ease"
+                            }}
+                        >
+                            {btn.label}
+                        </button>
+                    ))}
                 </div>
             </div>
 
             {loading ? (
                 <div>
                     <Skeleton height="40px" className="mb-8" />
-                    {Array(6).fill(0).map((_, i) => <Skeleton key={i} height="60px" className="mb-2" />)}
+                    {Array(5).fill(0).map((_, i) => <Skeleton key={i} height="70px" className="mb-2" />)}
                 </div>
             ) : orders.length === 0 ? (
                 <div className="empty-state">
                     <ShoppingBag size={48} color="var(--text-muted)" style={{ marginBottom: "16px" }} />
-                    <h3 className="h2">No orders tracked yet</h3>
+                    <h3 className="h2" style={{ fontSize: "18px", marginBottom: "12px" }}>No orders tracked yet</h3>
                     <p className="body" style={{ color: "var(--text-secondary)", marginBottom: "24px" }}>Start adding your Instagram orders to keep track of payments and deliveries.</p>
                     <Button onClick={() => setShowForm(true)}><Plus size={16} />Add Your First Order</Button>
                 </div>
             ) : (
-                <div className="table-shell" style={{ overflowX: "auto" }}>
-                    <table style={{ width: "100%", borderCollapse: "collapse", minWidth: "800px" }}>
-                        <thead>
-                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
-                                <th className="caption" style={{ padding: "16px" }}>Customer / IG</th>
-                                <th className="caption" style={{ padding: "16px" }}>Product</th>
-                                <th className="caption" style={{ padding: "16px" }}>Quantity</th>
-                                <th className="caption" style={{ padding: "16px" }}>Price</th>
-                                <th className="caption" style={{ padding: "16px" }}>Payment</th>
-                                <th className="caption" style={{ padding: "16px" }}>Delivery</th>
-                                <th className="caption" style={{ padding: "16px" }}>Date</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {filtered.map((order) => {
-                                const needsAttention = isOld(order.order_date) && order.delivery_status !== "delivered";
-                                return (
-                                    <tr 
-                                        key={order.id} 
-                                        style={{ 
-                                            borderBottom: "1px solid var(--border-subtle)", 
-                                            background: needsAttention ? "rgba(239, 68, 68, 0.03)" : "transparent",
-                                            transition: "background 0.2s ease"
-                                        }}
-                                    >
-                                        <td style={{ padding: "16px" }}>
-                                            <div style={{ display: "flex", flexDirection: "column" }}>
-                                                <button 
-                                                    onClick={() => setSelectedCustomer(order.customer_name)}
-                                                    style={{ background: "none", border: "none", padding: 0, textAlign: "left", color: "var(--accent)", fontWeight: "600", cursor: "pointer", fontSize: "14px" }}
-                                                >
-                                                    {order.customer_name}
-                                                </button>
-                                                <span style={{ color: "var(--text-muted)", fontSize: "12px", display: "flex", alignItems: "center", gap: "4px" }}>
-                                                    <AtSign size={10} /> {order.ig_username || "N/A"}
-                                                </span>
-                                            </div>
-                                        </td>
-                                        <td className="body" style={{ padding: "16px", fontSize: "14px" }}>{order.product_name}</td>
-                                        <td className="mono" style={{ padding: "16px", fontWeight: "600" }}>{order.quantity || 1}</td>
-                                        <td className="mono" style={{ padding: "16px", fontWeight: "600" }}>Rs {order.price}</td>
-                                        <td style={{ padding: "16px" }}>
-                                            <select 
-                                                value={order.payment_status} 
-                                                onChange={(e) => updateStatus(order.id, "payment_status", e.target.value)}
-                                                style={{ 
-                                                    padding: "4px 8px", 
-                                                    borderRadius: "6px", 
-                                                    fontSize: "12px", 
-                                                    fontWeight: "600",
-                                                    border: "1px solid var(--border)",
-                                                    background: order.payment_status === "paid" ? "rgba(34, 197, 94, 0.1)" : "rgba(239, 68, 68, 0.1)",
-                                                    color: order.payment_status === "paid" ? "var(--success)" : "var(--error)"
-                                                }}
-                                            >
-                                                <option value="unpaid">Unpaid</option>
-                                                <option value="paid">Paid</option>
-                                            </select>
-                                        </td>
-                                        <td style={{ padding: "16px" }}>
-                                            <select 
-                                                value={order.delivery_status} 
-                                                onChange={(e) => updateStatus(order.id, "delivery_status", e.target.value)}
-                                                style={{ 
-                                                    padding: "4px 8px", 
-                                                    borderRadius: "6px", 
-                                                    fontSize: "12px", 
-                                                    fontWeight: "600",
-                                                    border: "1px solid var(--border)",
-                                                    background: order.delivery_status === "delivered" ? "rgba(34, 197, 94, 0.1)" : order.delivery_status === "shipped" ? "rgba(59, 130, 246, 0.1)" : "rgba(234, 179, 8, 0.1)",
-                                                    color: order.delivery_status === "delivered" ? "var(--success)" : order.delivery_status === "shipped" ? "#3b82f6" : "var(--warning)"
-                                                }}
-                                            >
-                                                <option value="pending">Pending</option>
-                                                <option value="shipped">Shipped</option>
-                                                <option value="delivered">Delivered</option>
-                                            </select>
-                                        </td>
-                                        <td style={{ padding: "16px" }}>
-                                            <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                                                <span className="body" style={{ fontSize: "13px", color: needsAttention ? "var(--error)" : "var(--text-secondary)" }}>
-                                                    {new Date(order.order_date).toLocaleDateString()}
-                                                </span>
-                                                {needsAttention && <AlertCircle size={14} color="var(--error)" title="Needs update (3+ days old)" />}
-                                            </div>
-                                        </td>
+                <div className="orders-workspace">
+                    
+                    {/* LEFT PANEL: Order Queue */}
+                    <div className="orders-list-pane">
+                        <div className="table-shell" style={{ border: "1px solid var(--border)", boxShadow: "var(--shadow-sm)" }}>
+                            <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 0" }}>
+                                <thead>
+                                    <tr style={{ textAlign: "left", background: "var(--surface-raised)", borderBottom: "1px solid var(--border)" }}>
+                                        <th className="caption" style={{ padding: "12px 16px" }}>Customer Details</th>
+                                        <th className="caption" style={{ padding: "12px 16px" }}>Product SKU</th>
+                                        <th className="caption" style={{ padding: "12px 16px" }}>Payment</th>
+                                        <th className="caption" style={{ padding: "12px 16px" }}>Shipment</th>
                                     </tr>
-                                );
-                            })}
-                        </tbody>
-                    </table>
+                                </thead>
+                                <tbody>
+                                    {filtered.map((order) => {
+                                        const needsAttention = isOld(order.order_date) && order.delivery_status !== "delivered";
+                                        const isActive = order.id === selectedOrderId;
+                                        return (
+                                            <tr 
+                                                key={order.id} 
+                                                onClick={() => setSelectedOrderId(order.id)}
+                                                className={`workspace-order-row ${isActive ? "workspace-order-row--active" : ""}`}
+                                                style={{ 
+                                                    borderBottom: "1px solid var(--border-subtle)", 
+                                                    background: needsAttention && !isActive ? "rgba(186, 78, 78, 0.02)" : "transparent"
+                                                }}
+                                            >
+                                                <td style={{ padding: "14px 16px" }}>
+                                                    <div style={{ display: "flex", flexDirection: "column" }}>
+                                                        <span style={{ fontWeight: "600", fontSize: "13px", color: "var(--text-primary)" }}>
+                                                            {order.customer_name}
+                                                        </span>
+                                                        <span style={{ color: "var(--text-muted)", fontSize: "11px", display: "flex", alignItems: "center", gap: "2px", marginTop: "2px" }}>
+                                                            <AtSign size={9} /> {order.ig_username || "N/A"}
+                                                        </span>
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: "14px 16px" }}>
+                                                    <div style={{ fontWeight: "500", fontSize: "13px", color: "var(--text-primary)" }}>{order.product_name}</div>
+                                                    <div className="mono" style={{ fontSize: "11px", color: "var(--text-secondary)", marginTop: "2px" }}>
+                                                        {order.quantity} x Rs {order.price.toLocaleString()}
+                                                    </div>
+                                                </td>
+                                                <td style={{ padding: "14px 16px" }}>
+                                                    <select 
+                                                        value={order.payment_status} 
+                                                        onClick={(e) => e.stopPropagation()} // Prevent selecting the row when changing dropdown
+                                                        onChange={(e) => updateStatus(order.id, "payment_status", e.target.value)}
+                                                        style={{ 
+                                                            padding: "4px 8px", 
+                                                            borderRadius: "var(--radius-sm)", 
+                                                            fontSize: "11px", 
+                                                            fontWeight: "600",
+                                                            border: "1px solid var(--border)",
+                                                            background: order.payment_status === "paid" ? "var(--success-soft)" : "var(--error-soft)",
+                                                            color: order.payment_status === "paid" ? "var(--success)" : "var(--error)",
+                                                            cursor: "pointer"
+                                                        }}
+                                                    >
+                                                        <option value="unpaid">Unpaid</option>
+                                                        <option value="paid">Paid</option>
+                                                    </select>
+                                                </td>
+                                                <td style={{ padding: "14px 16px" }}>
+                                                    <div style={{ display: "flex", alignItems: "center", gap: "6px" }} onClick={(e) => e.stopPropagation()}>
+                                                        <select 
+                                                            value={order.delivery_status} 
+                                                            onChange={(e) => updateStatus(order.id, "delivery_status", e.target.value)}
+                                                            style={{ 
+                                                                padding: "4px 8px", 
+                                                                borderRadius: "var(--radius-sm)", 
+                                                                fontSize: "11px", 
+                                                                fontWeight: "600",
+                                                                border: "1px solid var(--border)",
+                                                                background: order.delivery_status === "delivered" ? "var(--success-soft)" : order.delivery_status === "shipped" ? "rgba(99, 91, 255, 0.05)" : "var(--warning-soft)",
+                                                                color: order.delivery_status === "delivered" ? "var(--success)" : order.delivery_status === "shipped" ? "var(--accent)" : "var(--warning)",
+                                                                cursor: "pointer"
+                                                            }}
+                                                        >
+                                                            <option value="pending">Pending</option>
+                                                            <option value="shipped">Shipped</option>
+                                                            <option value="delivered">Delivered</option>
+                                                        </select>
+                                                        {needsAttention && (
+                                                            <AlertCircle size={14} color="var(--error)" title="Needs update (3+ days old)" />
+                                                        )}
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    {/* RIGHT PANEL: Order details console */}
+                    <div className="order-details-pane">
+                        {selectedOrder ? (
+                            <>
+                                <div style={{ borderBottom: "1px solid var(--border-subtle)", paddingBottom: "14px" }}>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                                        <div>
+                                            <h3 style={{ fontSize: "16px", fontWeight: "700", color: "var(--text-primary)", margin: 0 }}>
+                                                {selectedOrder.customer_name}
+                                            </h3>
+                                            {selectedOrder.ig_username ? (
+                                                <a 
+                                                    href={`https://instagram.com/${selectedOrder.ig_username.replace('@', '')}`}
+                                                    target="_blank"
+                                                    rel="noreferrer"
+                                                    style={{ display: "inline-flex", alignItems: "center", gap: "4px", fontSize: "12px", color: "var(--accent)", fontWeight: "600", textDecoration: "none", marginTop: "4px" }}
+                                                >
+                                                    <AtSign size={11} /> {selectedOrder.ig_username}
+                                                    <ExternalLink size={10} />
+                                                </a>
+                                            ) : (
+                                                <span style={{ fontSize: "12px", color: "var(--text-muted)", marginTop: "4px", display: "block" }}>No Instagram linked</span>
+                                            )}
+                                        </div>
+                                        <div style={{ textAlign: "right" }}>
+                                            <span style={{ fontSize: "11px", color: "var(--text-muted)", display: "flex", alignItems: "center", gap: "4px", justifyContent: "flex-end" }}>
+                                                <Calendar size={11} /> {new Date(selectedOrder.order_date).toLocaleDateString()}
+                                            </span>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Order summary card */}
+                                <div style={{ background: "var(--surface-raised)", border: "1px solid var(--border-subtle)", borderRadius: "var(--radius-md)", padding: "14px" }}>
+                                    <div className="caption" style={{ marginBottom: "8px", color: "var(--text-muted)" }}>Order Summary</div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                                        <span style={{ fontSize: "13px", fontWeight: "600", color: "var(--text-primary)" }}>{selectedOrder.product_name}</span>
+                                        <span className="mono" style={{ fontSize: "13px", fontWeight: "600" }}>Qty: {selectedOrder.quantity}</span>
+                                    </div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--border-subtle)", paddingTop: "8px", marginTop: "8px" }}>
+                                        <span style={{ fontSize: "13px", fontWeight: "500", color: "var(--text-secondary)" }}>Total Value</span>
+                                        <span className="mono" style={{ fontSize: "14px", fontWeight: "700", color: "var(--text-primary)" }}>
+                                            Rs {(Number(selectedOrder.price) * (Number(selectedOrder.quantity) || 1)).toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+
+                                {/* Address / DM notes section */}
+                                <div>
+                                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "6px" }}>
+                                        <label className="caption" style={{ color: "var(--text-secondary)" }}>Customer Shipping & Note Details</label>
+                                        <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>Saves automatically</span>
+                                    </div>
+                                    <textarea 
+                                        placeholder="Paste shipping address, phone number, and custom delivery instructions from Instagram DM chat..."
+                                        value={orderNotes[selectedOrder.id] || ""}
+                                        onChange={(e) => saveNote(selectedOrder.id, e.target.value)}
+                                        style={{ 
+                                            width: "100%", 
+                                            height: "90px", 
+                                            background: "var(--bg-primary)", 
+                                            border: "1px solid var(--border)", 
+                                            borderRadius: "var(--radius-md)", 
+                                            padding: "10px", 
+                                            fontSize: "12px", 
+                                            color: "var(--text-primary)", 
+                                            fontFamily: "var(--font-body)",
+                                            resize: "none",
+                                            outline: "none" 
+                                        }}
+                                    />
+                                    {orderNotes[selectedOrder.id] && (
+                                        <button
+                                            onClick={() => handleCopyText(orderNotes[selectedOrder.id], "Address Details")}
+                                            style={{
+                                                background: "none",
+                                                border: "none",
+                                                color: "var(--accent)",
+                                                fontSize: "11px",
+                                                fontWeight: "600",
+                                                cursor: "pointer",
+                                                display: "flex",
+                                                alignItems: "center",
+                                                gap: "4px",
+                                                marginTop: "4px"
+                                            }}
+                                        >
+                                            <Copy size={11} /> Copy Notes
+                                        </button>
+                                    )}
+                                </div>
+
+                                {/* DM Templates Action Hub */}
+                                <div>
+                                    <label className="caption" style={{ display: "block", marginBottom: "8px", color: "var(--text-secondary)" }}>One-Click DM Templates</label>
+                                    <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                        
+                                        {/* Awaiting Payment */}
+                                        <div className="action-card">
+                                            <div className="action-card__info">
+                                                <span style={{ fontSize: "12px", fontWeight: "700" }}>Payment Request</span>
+                                                <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>Ask client to send cash screenshot</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleCopyText(dmTemplates.paymentPending, "Payment DM")}
+                                                style={{ background: "var(--surface)", border: "1px solid var(--border)", padding: "6px 10px", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)" }}
+                                            >
+                                                <Copy size={12} /> Copy
+                                            </button>
+                                        </div>
+
+                                        {/* Payment Confirmed */}
+                                        <div className="action-card">
+                                            <div className="action-card__info">
+                                                <span style={{ fontSize: "12px", fontWeight: "700" }}>Payment Confirmed</span>
+                                                <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>Acknowledge payment & shipping prep</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleCopyText(dmTemplates.paymentReceived, "Confirmation DM")}
+                                                style={{ background: "var(--surface)", border: "1px solid var(--border)", padding: "6px 10px", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)" }}
+                                            >
+                                                <Copy size={12} /> Copy
+                                            </button>
+                                        </div>
+
+                                        {/* Order Shipped */}
+                                        <div className="action-card">
+                                            <div className="action-card__info">
+                                                <span style={{ fontSize: "12px", fontWeight: "700" }}>Shipping Alert</span>
+                                                <span style={{ fontSize: "10px", color: "var(--text-muted)" }}>Share details once dispatch is complete</span>
+                                            </div>
+                                            <button 
+                                                onClick={() => handleCopyText(dmTemplates.orderShipped, "Shipping DM")}
+                                                style={{ background: "var(--surface)", border: "1px solid var(--border)", padding: "6px 10px", borderRadius: "var(--radius-sm)", cursor: "pointer", display: "flex", alignItems: "center", gap: "4px", fontSize: "11px", fontWeight: "600", color: "var(--text-secondary)" }}
+                                            >
+                                                <Copy size={12} /> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Customer Purchase History */}
+                                <div>
+                                    <label className="caption" style={{ display: "block", marginBottom: "6px", color: "var(--text-secondary)" }}>Customer History</label>
+                                    {customerHistory.length === 0 ? (
+                                        <div style={{ fontSize: "11px", color: "var(--text-muted)", padding: "8px", background: "var(--surface-raised)", borderRadius: "var(--radius-md)", border: "1px dashed var(--border-subtle)" }}>
+                                            First order from this customer.
+                                        </div>
+                                    ) : (
+                                        <div style={{ maxHeight: "100px", overflowY: "auto", display: "flex", flexDirection: "column", gap: "4px" }}>
+                                            {customerHistory.map(h => (
+                                                <div key={h.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 8px", background: "var(--surface-raised)", borderRadius: "var(--radius-sm)", border: "1px solid var(--border-subtle)", fontSize: "11px" }}>
+                                                    <div>
+                                                        <span style={{ fontWeight: "600" }}>{h.product_name}</span>
+                                                        <span style={{ color: "var(--text-muted)", marginLeft: "4px" }}>{new Date(h.order_date).toLocaleDateString()}</span>
+                                                    </div>
+                                                    <div style={{ fontWeight: "700", color: h.payment_status === "paid" ? "var(--success)" : "var(--error)" }}>
+                                                        Rs {h.price.toLocaleString()}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+                            </>
+                        ) : (
+                            <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", padding: "40px 10px", color: "var(--text-muted)", textAlign: "center" }}>
+                                <MessageSquare size={32} style={{ marginBottom: "12px", opacity: 0.3 }} />
+                                <h3 style={{ fontSize: "14px", fontWeight: "600", color: "var(--text-secondary)", margin: 0 }}>No Order Selected</h3>
+                                <p style={{ fontSize: "12px", marginTop: "4px" }}>Click on any order in the queue to load details and templates.</p>
+                            </div>
+                        )}
+                    </div>
                 </div>
             )}
 
@@ -376,14 +609,14 @@ export default function OrdersPage() {
             <AnimatePresence>
                 {showForm && (
                     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.2)", backdropFilter: "blur(4px)" }} />
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setShowForm(false)} style={{ position: "absolute", inset: 0, background: "rgba(35,30,28,0.2)", backdropFilter: "blur(4px)" }} />
                         <motion.div 
                             initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} 
                             transition={{ type: "spring", damping: 30, stiffness: 300 }}
                             style={{ position: "relative", width: "450px", maxWidth: "100%", height: "100%", background: "var(--surface)", boxShadow: "-10px 0 30px rgba(0,0,0,0.1)", padding: "40px", display: "flex", flexDirection: "column", borderLeft: "1px solid var(--border)" }}
                         >
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
-                                <h2 className="h2">New Order</h2>
+                                <h2 className="h2" style={{ fontSize: "18px", fontWeight: "750", margin: 0 }}>Add New Order</h2>
                                 <button onClick={() => setShowForm(false)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}><X size={20} /></button>
                             </div>
 
@@ -391,14 +624,14 @@ export default function OrdersPage() {
                                 <Input label="Customer Name *" placeholder="e.g. John Doe" value={newOrder.customer_name} onChange={e => setNewOrder(p => ({ ...p, customer_name: e.target.value }))} required />
                                 <Input label="Instagram Username" placeholder="@username" value={newOrder.ig_username} onChange={e => setNewOrder(p => ({ ...p, ig_username: e.target.value }))} />
                                 <div>
-                                    <label className="caption" style={{ display: "block", marginBottom: "8px", color: "var(--text-muted)" }}>Product</label>
+                                    <label className="caption" style={{ display: "block", marginBottom: "6px", color: "var(--text-secondary)" }}>Product SKU *</label>
                                     <select
                                       value={selectedProductId}
                                       onChange={(e) => setSelectedProductId(e.target.value)}
                                       required
-                                      style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)" }}
+                                      style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}
                                     >
-                                      <option value="">Select Product</option>
+                                      <option value="">Select Product SKU</option>
                                       {products.map((product) => (
                                         <option key={product.id} value={product.id}>
                                           {product.name} ({product.stock} left)
@@ -413,15 +646,15 @@ export default function OrdersPage() {
                                 
                                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
                                     <div>
-                                        <label className="caption" style={{ display: "block", marginBottom: "8px", color: "var(--text-muted)" }}>Payment Status</label>
-                                        <select value={newOrder.payment_status} onChange={e => setNewOrder(p => ({ ...p, payment_status: e.target.value }))} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)" }}>
+                                        <label className="caption" style={{ display: "block", marginBottom: "6px", color: "var(--text-secondary)" }}>Payment Status</label>
+                                        <select value={newOrder.payment_status} onChange={e => setNewOrder(p => ({ ...p, payment_status: e.target.value }))} style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}>
                                             <option value="unpaid">Unpaid</option>
                                             <option value="paid">Paid</option>
                                         </select>
                                     </div>
                                     <div>
-                                        <label className="caption" style={{ display: "block", marginBottom: "8px", color: "var(--text-muted)" }}>Delivery Status</label>
-                                        <select value={newOrder.delivery_status} onChange={e => setNewOrder(p => ({ ...p, delivery_status: e.target.value }))} style={{ width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--border)", background: "var(--surface)" }}>
+                                        <label className="caption" style={{ display: "block", marginBottom: "6px", color: "var(--text-secondary)" }}>Delivery Status</label>
+                                        <select value={newOrder.delivery_status} onChange={e => setNewOrder(p => ({ ...p, delivery_status: e.target.value }))} style={{ width: "100%", padding: "10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--border)", background: "var(--surface)", color: "var(--text-primary)", fontSize: "13px", outline: "none" }}>
                                             <option value="pending">Pending</option>
                                             <option value="shipped">Shipped</option>
                                             <option value="delivered">Delivered</option>
@@ -440,47 +673,6 @@ export default function OrdersPage() {
                     </div>
                 )}
             </AnimatePresence>
-
-            {/* Customer History Modal */}
-            <AnimatePresence>
-                {selectedCustomer && (
-                    <div style={{ position: "fixed", inset: 0, zIndex: 1100, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}>
-                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => setSelectedCustomer(null)} style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }} />
-                        <motion.div 
-                            initial={{ scale: 0.9, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.9, opacity: 0 }}
-                            style={{ position: "relative", width: "100%", maxWidth: "700px", background: "var(--surface)", borderRadius: "16px", padding: "32px", boxShadow: "0 20px 40px rgba(0,0,0,0.2)" }}
-                        >
-                            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "24px" }}>
-                                <div>
-                                    <h2 className="h2" style={{ marginBottom: "4px" }}>{selectedCustomer}</h2>
-                                    <p className="caption">Customer Order History</p>
-                                </div>
-                                <button onClick={() => setSelectedCustomer(null)} style={{ background: "none", border: "none", color: "var(--text-muted)", cursor: "pointer" }}><X size={20} /></button>
-                            </div>
-
-                            <div style={{ maxHeight: "400px", overflowY: "auto" }}>
-                                {customerHistory.map(o => (
-                                    <div key={o.id} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "16px", borderBottom: "1px solid var(--border-subtle)" }}>
-                                        <div>
-                                            <div style={{ fontWeight: "600", fontSize: "14px" }}>{o.product_name}</div>
-                                            <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{new Date(o.order_date).toLocaleDateString()}</div>
-                                        </div>
-                                        <div style={{ textAlign: "right" }}>
-                                            <div className="mono" style={{ fontWeight: "600" }}>Rs {o.price}</div>
-                                            <div style={{ fontSize: "11px", color: o.payment_status === "paid" ? "var(--success)" : "var(--error)" }}>{o.payment_status.toUpperCase()}</div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-
-                            <div style={{ marginTop: "24px", textAlign: "right" }}>
-                                <Button variant="secondary" onClick={() => setSelectedCustomer(null)}>Close</Button>
-                            </div>
-                        </motion.div>
-                    </div>
-                )}
-            </AnimatePresence>
         </div>
     );
 }
-

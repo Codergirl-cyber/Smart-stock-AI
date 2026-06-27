@@ -13,6 +13,7 @@ import {
   Sun,
   X,
 } from "lucide-react";
+import logoImg from "./assets/logo.png";
 import { useAuth } from "./hooks/useAuth";
 import { useToast } from "./hooks/useToast";
 import { useTheme } from "./hooks/useTheme";
@@ -64,7 +65,7 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
       )}
       <aside className={`app-sidebar ${mobileOpen ? "is-open" : ""}`}>
         <div className="app-sidebar__brand">
-          <div className="brand-mark" style={{ width: "24px", height: "24px", borderRadius: "5px" }} />
+          <img src={logoImg} alt="SellerSync" className="brand-mark" style={{ width: "24px", height: "24px", borderRadius: "50%" }} />
           <span>SellerSync</span>
           <button type="button" className="sidebar-close-mobile" onClick={onMobileClose} aria-label="Close menu">
             <X size={18} />
@@ -109,7 +110,7 @@ const Sidebar = ({ mobileOpen, onMobileClose }) => {
             aria-label={isDark ? "Switch to light mode" : "Switch to dark mode"}
           >
             {isDark ? <Sun size={16} /> : <Moon size={16} />}
-            <span>{isDark ? "Light ☀️" : "Dark 🌙"}</span>
+            <span>{isDark ? "Light mode" : "Dark mode"}</span>
           </button>
 
           <motion.button

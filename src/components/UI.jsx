@@ -30,10 +30,10 @@ export const Card = ({ children, className = "", onClick, ...props }) => (
 
 export const Button = ({ children, variant = "primary", size = "md", className = "", ...props }) => {
   const variants = {
-    primary: { background: "var(--accent)", color: "#fff", border: "1px solid rgba(38, 48, 24, 0.22)" },
+    primary: { background: "var(--accent)", color: "#fff", border: "1px solid transparent" },
     secondary: { background: "var(--surface)", color: "var(--text-primary)", border: "1px solid var(--border)" },
     ghost: { background: "transparent", color: "var(--text-secondary)", border: "none" },
-    danger: { background: "var(--surface)", color: "var(--error)", border: "1px solid rgba(155, 63, 53, 0.32)" }
+    danger: { background: "var(--surface)", color: "var(--error)", border: "1px solid rgba(220, 38, 38, 0.2)" }
   };
 
   const sizes = {
@@ -59,14 +59,14 @@ export const Button = ({ children, variant = "primary", size = "md", className =
         ...variants[variant],
         ...sizes[size],
         borderRadius: "var(--radius-sm)",
-        fontWeight: "650",
+        fontWeight: "600",
         cursor: "pointer",
         display: "inline-flex",
         alignItems: "center",
         justifyContent: "center",
         gap: "8px",
-        boxShadow: variant === "primary" ? "0 12px 24px rgba(70, 84, 45, 0.18)" : "none",
-        transition: "all 0.3s ease",
+        boxShadow: "none",
+        transition: "background-color 0.15s ease, border-color 0.15s ease",
         ...props.style
       }}
       {...props}
@@ -129,7 +129,7 @@ export const Input = ({ label, ...props }) => (
     )}
     <motion.input 
       {...props}
-      whileFocus={{ borderColor: "var(--accent)", boxShadow: "0 0 0 3px rgba(95, 111, 63, 0.12)" }}
+      whileFocus={{ borderColor: "var(--accent)", boxShadow: "0 0 0 3px rgba(99, 91, 255, 0.12)" }}
       transition={{ type: "spring", stiffness: 300, damping: 30 }}
       style={{ 
         width: "100%", 
