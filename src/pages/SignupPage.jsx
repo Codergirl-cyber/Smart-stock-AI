@@ -6,15 +6,11 @@ import { useAuth } from '../hooks/useAuth';
 import { useToast } from '../hooks/useToast';
 import '../styles/AuthPages.css';
 
-
 export default function SignupPage() {
   const navigate = useNavigate();
   const { signUp, error: authError, clearError } = useAuth();
-<<<<<<< HEAD
-
-=======
->>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
   const { showToast } = useToast();
+
   const [formData, setFormData] = useState({
     email: '',
     password: '',
@@ -65,9 +61,7 @@ export default function SignupPage() {
     setSuccess('');
     clearError();
 
-    if (!validateForm()) {
-      return;
-    }
+    if (!validateForm()) return;
 
     try {
       setIsSubmitting(true);
@@ -79,9 +73,7 @@ export default function SignupPage() {
         localStorage.setItem('userEmail', formData.email);
         navigate('/dashboard', { replace: true });
       } else {
-        setSuccess(
-          'Account created! Check your email to confirm, then login.'
-        );
+        setSuccess('Account created! Check your email to confirm, then login.');
         showToast('Check your email to confirm your account.', 'info');
         setFormData({ email: '', password: '', confirmPassword: '' });
         setTimeout(() => navigate('/login'), 3000);
@@ -89,13 +81,8 @@ export default function SignupPage() {
     } catch (err) {
       const msg = err.message || '';
       if (msg.toLowerCase().includes('rate limit')) {
-        setError(
-          'Too many attempts. Please wait a few minutes or use a different email.'
-        );
-      } else if (
-        msg.toLowerCase().includes('already') ||
-        msg.toLowerCase().includes('registered')
-      ) {
+        setError('Too many attempts. Please wait a few minutes or use a different email.');
+      } else if (msg.toLowerCase().includes('already') || msg.toLowerCase().includes('registered')) {
         setError('This email is already registered. Login instead.');
       } else {
         setError(msg || 'Could not create account. Please try again.');
@@ -106,7 +93,6 @@ export default function SignupPage() {
   };
 
   const displayError = error || authError;
-
 
   return (
     <motion.div
@@ -198,11 +184,7 @@ export default function SignupPage() {
             </div>
           </div>
 
-          <button
-            type="submit"
-            className="auth-button primary"
-            disabled={isSubmitting}
-          >
+          <button type="submit" className="auth-button primary" disabled={isSubmitting}>
             {isSubmitting ? (
               <>
                 <Loader size={18} className="spinner" />
@@ -214,11 +196,6 @@ export default function SignupPage() {
           </button>
         </form>
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
         <p className="auth-footer">
           Already have an account?{' '}
           <Link to="/login" className="auth-link">
@@ -229,3 +206,4 @@ export default function SignupPage() {
     </motion.div>
   );
 }
+

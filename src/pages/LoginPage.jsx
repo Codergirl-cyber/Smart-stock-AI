@@ -13,11 +13,8 @@ export default function LoginPage() {
   const redirectTo = location.state?.from || '/dashboard';
 
   const { signInWithPassword, error: authError, clearError } = useAuth();
-<<<<<<< HEAD
-
-=======
->>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
   const { showToast } = useToast();
+
   const [email, setEmail] = useState(() => localStorage.getItem('userEmail') || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -48,7 +45,6 @@ export default function LoginPage() {
   };
 
   const displayError = error || authError;
-
 
   return (
     <motion.div
@@ -137,11 +133,6 @@ export default function LoginPage() {
           </button>
         </form>
 
-<<<<<<< HEAD
-
-
-=======
->>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
         <p className="auth-footer">
           Don&apos;t have an account?{' '}
           <Link to="/signup" className="auth-link">
@@ -152,3 +143,4 @@ export default function LoginPage() {
     </motion.div>
   );
 }
+
