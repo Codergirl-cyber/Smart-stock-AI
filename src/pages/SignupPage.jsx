@@ -10,7 +10,10 @@ import '../styles/AuthPages.css';
 export default function SignupPage() {
   const navigate = useNavigate();
   const { signUp, error: authError, clearError } = useAuth();
+<<<<<<< HEAD
 
+=======
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
   const { showToast } = useToast();
   const [formData, setFormData] = useState({
     email: '',
@@ -211,8 +214,11 @@ export default function SignupPage() {
           </button>
         </form>
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
         <p className="auth-footer">
           Already have an account?{' '}
           <Link to="/login" className="auth-link">

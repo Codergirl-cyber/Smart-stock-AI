@@ -177,25 +177,6 @@
 .auth-button.primary:active:not(:disabled) {
   transform: translateY(0);
 }
-
-/* Google Button */
-.auth-button.google {
-  background: var(--card, var(--card-bg));
-  color: var(--text-primary);
-  border: 1.5px solid var(--border-color);
-  width: 100%;
-}
-
-.auth-button.google:hover:not(:disabled) {
-  background: var(--bg-secondary);
-  border-color: var(--accent);
-}
-
-.google-icon {
-  width: 1.2rem;
-  height: 1.2rem;
-}
-
 /* Spinner */
 .spinner {
   animation: spin 1s linear infinite;
@@ -208,24 +189,6 @@
   to {
     transform: rotate(360deg);
   }
-}
-
-/* Divider */
-.auth-divider {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  margin: 1.5rem 0;
-  color: var(--text-secondary);
-  font-size: 0.9rem;
-}
-
-.auth-divider::before,
-.auth-divider::after {
-  content: '';
-  flex: 1;
-  height: 1px;
-  background: var(--border-color);
 }
 
 /* Footer */

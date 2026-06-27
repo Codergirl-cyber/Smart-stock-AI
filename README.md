@@ -6,14 +6,15 @@ Built as a full-stack web application with authentication, inventory management,
 
 ## Live Demo
 
-🔗 Live: https://seller-sync-nine.vercel.app/ 
-🔗 GitHub: https://github.com/Codergirl-cyber/Seller-Sync
+🔗 Live: https://smart-stock-ai-eta.vercel.app/
+🔗 GitHub: https://github.com/Codergirl-cyber/Smart-stock-AI
 
 📄 Demo guide: `DEMO_README.md`
 
 ---
 
-<img width="1880" height="910" alt="image" src="https://github.com/user-attachments/assets/d1f246a3-77ea-42c8-99ad-3ec6007fa905" />
+<img width="1919" height="1079" alt="image" src="https://github.com/user-attachments/assets/e14b491e-b6f2-452e-a8c9-59fa837f5d8e" />
+
 
 
 

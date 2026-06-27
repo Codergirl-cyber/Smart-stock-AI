@@ -1,11 +1,22 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef, lazy, Suspense } from "react";
 import { supabase } from "./supabase";
 import { useAuth } from "./hooks/useAuth";
 import { Button, Badge, Skeleton, Input, springConfig } from "./components/UI";
+import SyncBanner from "./components/SyncBanner";
 import { Plus, Search, Edit2, Trash2, PackagePlus } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "./hooks/useToast";
-import AIDemandForecast from "./components/AIDemandForecast";
+
+const AIDemandForecast = lazy(() => import("./components/AIDemandForecast"));
+import {
+  readProductsCache,
+  writeProductsCache,
+  touchProductsCache,
+  appendProductToCache,
+  updateProductInCache,
+  removeProductFromCache,
+  productsAreEqual,
+} from "./services/productsCache";
 
 const emptyProduct = { name: "", price: "", stock: "", category: "", reorder_level: "2" };
 
@@ -22,15 +33,37 @@ export default function ProductsPage() {
     const [showForecast, setShowForecast] = useState(false);
     const [forecastProduct, setForecastProduct] = useState(null);
 
+<<<<<<< HEAD
     const fetchProducts = useCallback(async () => {
         if (!user) {
             setProducts([]);
-            setLoading(false);
-            return;
-        }
+=======
+    // Sync-banner state
+    const [staleBanner, setStaleBanner] = useState(false);
+    const [applyingSyncData, setApplyingSyncData] = useState(false);
+    const freshProductsRef = useRef([]);
 
+    // ─── Cache-first load ────────────────────────────────────────────────────
+
+    const loadFromCache = useCallback(() => {
+        if (!user) return false;
+        const cached = readProductsCache(user.id);
+        if (cached) {
+            setProducts(cached.products);
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
+            setLoading(false);
+            return true;
+        }
+        return false;
+    }, [user]);
+
+    const syncFromDB = useCallback(async (force = false) => {
+        if (!user) return;
         try {
+<<<<<<< HEAD
             setLoading(true);
+=======
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
             const { data, error } = await supabase
                 .from("products")
                 .select("*")
@@ -38,26 +71,66 @@ export default function ProductsPage() {
                 .order("name", { ascending: true });
 
             if (error) throw error;
-            setProducts(data || []);
+            const fresh = data || [];
+
+            if (force) {
+                setProducts(fresh);
+                writeProductsCache(user.id, fresh);
+                setStaleBanner(false);
+                return;
+            }
+
+            const cached = readProductsCache(user.id);
+            if (cached && productsAreEqual(cached.products, fresh)) {
+                touchProductsCache(user.id);
+            } else if (!cached) {
+                setProducts(fresh);
+                writeProductsCache(user.id, fresh);
+            } else {
+                freshProductsRef.current = fresh;
+                setStaleBanner(true);
+            }
         } catch (err) {
-            console.error(err);
-            setProducts([]);
-            showToast("Could not load products.", "error");
-        } finally {
-            setLoading(false);
+            console.warn("[ProductsPage] Background sync failed:", err.message);
         }
-    }, [user, showToast]);
+    }, [user]);
+
+    const handleApplySync = useCallback(async () => {
+        setApplyingSyncData(true);
+        if (freshProductsRef.current.length > 0) {
+            setProducts(freshProductsRef.current);
+            writeProductsCache(user.id, freshProductsRef.current);
+            freshProductsRef.current = [];
+            setStaleBanner(false);
+            setApplyingSyncData(false);
+        } else {
+            await syncFromDB(true);
+            setApplyingSyncData(false);
+        }
+    }, [user, syncFromDB]);
+
+    // ─── Mount effect ────────────────────────────────────────────────────────
 
     useEffect(() => {
         if (!user) return;
+<<<<<<< HEAD
         fetchProducts();
     }, [user, fetchProducts]);
+=======
+        const cacheHit = loadFromCache();
+        if (!cacheHit) {
+            setLoading(true);
+            syncFromDB(true).finally(() => setLoading(false));
+        } else {
+            syncFromDB(false);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user]);
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
 
-    const openCreate = () => {
-        setEditingId(null);
-        setFormProduct(emptyProduct);
-        setShowForm(true);
-    };
+    // ─── Form helpers ────────────────────────────────────────────────────────
+
+    const openCreate = () => { setEditingId(null); setFormProduct(emptyProduct); setShowForm(true); };
 
     const openEdit = (product) => {
         setEditingId(product.id);
@@ -71,11 +144,9 @@ export default function ProductsPage() {
         setShowForm(true);
     };
 
-    const closeForm = () => {
-        setShowForm(false);
-        setEditingId(null);
-        setFormProduct(emptyProduct);
-    };
+    const closeForm = () => { setShowForm(false); setEditingId(null); setFormProduct(emptyProduct); };
+
+    // ─── Save product (optimistic) ───────────────────────────────────────────
 
     const saveProduct = async () => {
         if (!formProduct.name || !formProduct.price) {
@@ -85,10 +156,7 @@ export default function ProductsPage() {
 
         try {
             setSaving(true);
-            if (!user) {
-                showToast("Please log in to manage inventory.", "error");
-                return;
-            }
+            if (!user) { showToast("Please log in to manage inventory.", "error"); return; }
 
             const payload = {
                 name: formProduct.name,
@@ -100,6 +168,11 @@ export default function ProductsPage() {
             };
 
             if (editingId) {
+                // Optimistic update
+                const optimistic = { ...products.find(p => p.id === editingId), ...payload };
+                setProducts(prev => prev.map(p => p.id === editingId ? optimistic : p));
+                updateProductInCache(user.id, optimistic);
+
                 const { data, error } = await supabase
                     .from("products")
                     .update(payload)
@@ -107,10 +180,22 @@ export default function ProductsPage() {
                     .eq("user_id", user.id)
                     .select();
 
+<<<<<<< HEAD
                 if (error) throw error;
                 setProducts((prev) => prev.map((p) => (p.id === editingId ? data[0] : p)));
                 showToast("Product updated.", "success");
                 tryDispatchEvent();
+=======
+                if (error) {
+                    // Revert
+                    syncFromDB(true);
+                    throw error;
+                }
+                // Apply confirmed data
+                setProducts(prev => prev.map(p => p.id === editingId ? data[0] : p));
+                updateProductInCache(user.id, data[0]);
+                showToast("Product updated.", "success");
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
             } else {
                 const { data, error } = await supabase
                     .from("products")
@@ -118,12 +203,19 @@ export default function ProductsPage() {
                     .select();
 
                 if (error) throw error;
-                setProducts((prev) => [data[0], ...prev]);
+
+                // Optimistic add to UI + cache
+                setProducts(prev => [data[0], ...prev].sort((a, b) => a.name.localeCompare(b.name)));
+                appendProductToCache(user.id, data[0]);
                 showToast("Product added.", "success");
+<<<<<<< HEAD
                 tryDispatchEvent();
+=======
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
             }
 
             closeForm();
+            try { window.dispatchEvent(new Event('sellersync-data-changed')); } catch { /**/ }
         } catch (err) {
             console.error(err);
             showToast(err.message || "Failed to save product.", "error");
@@ -132,21 +224,28 @@ export default function ProductsPage() {
         }
     };
 
+    // ─── Delete product (optimistic) ─────────────────────────────────────────
+
     const deleteProduct = async (id) => {
         if (!window.confirm("Remove this product from inventory?")) return;
-
         if (!user) return;
+
+        // Optimistic remove
+        setProducts(prev => prev.filter(p => p.id !== id));
+        removeProductFromCache(user.id, id);
 
         const { error } = await supabase.from("products").delete().eq("id", id).eq("user_id", user.id);
         if (error) {
+            // Revert
+            syncFromDB(true);
             showToast(error.message || "Could not delete product.", "error");
             return;
         }
-        setProducts((p) => p.filter((prod) => prod.id !== id));
         showToast("Product removed.", "info");
         tryDispatchEvent();
     };
 
+<<<<<<< HEAD
     const adjustStock = async (product, amount) => {
         const nextStock = Math.max(0, Number(product.stock ?? 0) + amount);
         
@@ -185,6 +284,9 @@ export default function ProductsPage() {
     };
 
     const filtered = products.filter((p) => (p.name ?? "").toLowerCase().includes(search.toLowerCase()));
+=======
+    const filtered = products.filter(p => p.name.toLowerCase().includes(search.toLowerCase()));
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
 
     return (
         <div className="page-shell" style={{ padding: "24px 32px 48px" }}>
@@ -200,17 +302,38 @@ export default function ProductsPage() {
                 )}
             </div>
 
+            {/* Sync Banner */}
+            <SyncBanner
+                visible={staleBanner}
+                syncing={applyingSyncData}
+                message="Product inventory has been updated — your view may be outdated."
+                onApply={handleApplySync}
+                onDismiss={() => setStaleBanner(false)}
+            />
+
             {loading ? (
                 <div style={{ marginTop: "32px" }}>
                     <Skeleton height="40px" className="mb-8" />
                     {Array(5).fill(0).map((_, i) => <Skeleton key={i} height="60px" className="mb-2" />)}
                 </div>
             ) : products.length === 0 ? (
-                <motion.div 
+                <motion.div
                     initial={{ opacity: 0, scale: 0.98 }}
                     animate={{ opacity: 1, scale: 1 }}
                     transition={springConfig}
+<<<<<<< HEAD
                     className="empty-state"
+=======
+                    style={{
+                        marginTop: "40px",
+                        padding: "100px 40px",
+                        textAlign: "center",
+                        border: "1px dashed var(--border)",
+                        borderRadius: "var(--radius-lg)",
+                        background: "var(--surface-raised)",
+                        boxShadow: "var(--shadow-md)"
+                    }}
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
                 >
                     <div style={{ width: "48px", height: "48px", background: "var(--surface)", borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", boxShadow: "var(--shadow-sm)", border: "1px solid var(--border)" }}>
                         <Plus size={20} color="var(--text-muted)" />
@@ -227,14 +350,20 @@ export default function ProductsPage() {
                 <>
                     <div className="premium-search" style={{ marginBottom: "20px" }}>
                         <Search size={14} color="var(--text-muted)" />
+<<<<<<< HEAD
                         <input 
                             placeholder="Search inventory by item name..." 
+=======
+                        <input
+                            placeholder="Search inventory..."
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
                             value={search}
                             onChange={(e) => setSearch(e.target.value)}
                         />
                     </div>
 
                     <div className="table-shell">
+<<<<<<< HEAD
                         <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: "0 0" }}>
                             <thead>
                                 <tr style={{ textAlign: "left", background: "var(--surface-raised)", borderBottom: "1px solid var(--border)" }}>
@@ -336,6 +465,49 @@ export default function ProductsPage() {
                                 ))}
                             </motion.tbody>
                         </table>
+=======
+                    <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                        <thead>
+                            <tr style={{ textAlign: "left", borderBottom: "1px solid var(--border)" }}>
+                                <th className="caption" style={{ padding: "16px 0" }}>Name</th>
+                                <th className="caption" style={{ padding: "16px 0" }}>Status</th>
+                                <th className="caption" style={{ padding: "16px 0" }}>Stock</th>
+                                <th className="caption" style={{ padding: "16px 0" }}>Price</th>
+                                <th className="caption" style={{ padding: "16px 0", textAlign: "right" }}>Actions</th>
+                            </tr>
+                        </thead>
+                        <motion.tbody initial="hidden" animate="visible" variants={{ visible: { transition: { staggerChildren: 0.05 } } }}>
+                            {filtered.map((product) => (
+                                <motion.tr
+                                    key={product.id}
+                                    variants={{ hidden: { opacity: 0, x: -10 }, visible: { opacity: 1, x: 0 } }}
+                                    transition={springConfig}
+                                    style={{ borderBottom: "1px solid var(--border-subtle)" }}
+                                >
+                                    <td className="body" style={{ padding: "20px 0", fontWeight: "500" }}>{product.name}</td>
+                                    <td style={{ padding: "20px 0" }}>
+                                        {(() => {
+                                            const reorder = Number(product.reorder_level ?? 2);
+                                            const qty = Number(product.stock ?? 0);
+                                            if (qty <= 0) return <Badge status="error">Out</Badge>;
+                                            if (qty <= reorder) return <Badge status="warning">Low</Badge>;
+                                            return <Badge status="success">In Stock</Badge>;
+                                        })()}
+                                    </td>
+                                    <td className="mono" style={{ padding: "20px 0", color: "var(--text-secondary)" }}>{product.stock}</td>
+                                    <td className="mono" style={{ padding: "20px 0", fontWeight: "600" }}>Rs {product.price.toLocaleString()}</td>
+                                    <td style={{ padding: "20px 0", textAlign: "right" }}>
+                                        <div style={{ display: "flex", gap: "20px", justifyContent: "flex-end" }}>
+                                            <button type="button" aria-label={`Edit ${product.name}`} onClick={() => openEdit(product)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }}><Edit2 size={13} /></button>
+                                            <button type="button" aria-label={`Forecast ${product.name}`} onClick={() => { setForecastProduct(product.id); setShowForecast(true); }} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)" }} title="Forecast"><PackagePlus size={13} /></button>
+                                            <button type="button" aria-label={`Delete ${product.name}`} onClick={() => deleteProduct(product.id)} style={{ background: "none", border: "none", cursor: "pointer", color: "var(--error)" }}><Trash2 size={13} /></button>
+                                        </div>
+                                    </td>
+                                </motion.tr>
+                            ))}
+                        </motion.tbody>
+                    </table>
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
                     </div>
                 </>
             )}
@@ -343,6 +515,7 @@ export default function ProductsPage() {
             <AnimatePresence>
                 {showForm && (
                     <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", justifyContent: "flex-end" }}>
+<<<<<<< HEAD
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeForm} style={{ position: "absolute", inset: 0, background: "rgba(35,30,28,0.2)", backdropFilter: "blur(4px)" }} />
                         <motion.div className="drawer-panel" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} style={{ position: "relative", width: "400px", height: "100%", padding: "40px", display: "flex", flexDirection: "column" }}>
                             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "32px" }}>
@@ -356,6 +529,17 @@ export default function ProductsPage() {
                                 <Input label="Stock" type="number" placeholder="0" value={formProduct.stock} onChange={(e) => setFormProduct((p) => ({ ...p, stock: e.target.value }))} />
                                 <Input label="Category" placeholder="e.g. Apparel" value={formProduct.category} onChange={(e) => setFormProduct((p) => ({ ...p, category: e.target.value }))} />
                                 <Input label="Reorder Level" type="number" placeholder="2" value={formProduct.reorder_level} onChange={(e) => setFormProduct((p) => ({ ...p, reorder_level: e.target.value }))} />
+=======
+                        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={closeForm} style={{ position: "absolute", inset: 0, background: "rgba(31,33,25,0.16)", backdropFilter: "blur(4px)" }} />
+                        <motion.div className="drawer-panel" initial={{ x: "100%" }} animate={{ x: 0 }} exit={{ x: "100%" }} transition={{ type: "spring", damping: 30, stiffness: 300 }} style={{ position: "relative", width: "400px", height: "100%", padding: "48px", display: "flex", flexDirection: "column" }}>
+                            <h2 className="h2" style={{ marginBottom: "32px" }}>{editingId ? "Edit Product" : "New Product"}</h2>
+                            <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
+                                <Input label="Product Name" placeholder="e.g. Silk Saree" value={formProduct.name} onChange={(e) => setFormProduct(p => ({ ...p, name: e.target.value }))} />
+                                <Input label="Price (INR)" type="number" placeholder="0" value={formProduct.price} onChange={(e) => setFormProduct(p => ({ ...p, price: e.target.value }))} />
+                                <Input label="Stock" type="number" placeholder="0" value={formProduct.stock} onChange={(e) => setFormProduct(p => ({ ...p, stock: e.target.value }))} />
+                                <Input label="Category" placeholder="e.g. Apparel" value={formProduct.category} onChange={(e) => setFormProduct(p => ({ ...p, category: e.target.value }))} />
+                                <Input label="Reorder Level" type="number" placeholder="2" value={formProduct.reorder_level} onChange={(e) => setFormProduct(p => ({ ...p, reorder_level: e.target.value }))} />
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
                             </div>
                             <div style={{ marginTop: "auto", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "12px" }}>
                                 <Button variant="secondary" onClick={closeForm} disabled={saving}>Cancel</Button>
@@ -367,7 +551,11 @@ export default function ProductsPage() {
                     </div>
                 )}
             </AnimatePresence>
-            {showForecast && <AIDemandForecast productId={forecastProduct} onClose={() => setShowForecast(false)} />}
+            {showForecast && (
+                <Suspense fallback={<div className="loading-container" style={{ padding: '20px', textAlign: 'center' }}>Loading Forecast...</div>}>
+                    <AIDemandForecast productId={forecastProduct} onClose={() => setShowForecast(false)} />
+                </Suspense>
+            )}
         </div>
     );
 }

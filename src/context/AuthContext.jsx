@@ -255,8 +255,11 @@ export function AuthProvider({ children }) {
     return data;
   };
 
+<<<<<<< HEAD
 
 
+=======
+>>>>>>> d77fe20171a6ef16cb038770117125dfa26ddae3
   const resetPassword = async (email) => {
     setError(null);
     const client = assertClient();
