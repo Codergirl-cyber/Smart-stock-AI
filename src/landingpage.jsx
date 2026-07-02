@@ -483,10 +483,7 @@ function Navbar({ scrolled, activeSection, onScrollTo }) {
     }}>
       <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L7 12L13 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
-          </div>
-            <SellerSyncLogo size={32} variant="compact" />
+          <SellerSyncLogo size={32} variant="compact" />
         </div>
 
         <div style={{ display: "flex", gap: 28, alignItems: "center" }}>

@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { AnimatePresence, motion } from "framer-motion";
 import { Menu } from "lucide-react";
 import Sidebar from "../sidebar";
+import SellerSyncLogo from "../components/SellerSyncLogo";
 
 const PageWrapper = ({ children }) => (
   <motion.div
@@ -34,7 +35,7 @@ export default function ProtectedLayout() {
           >
             <Menu size={20} />
           </button>
-          <span className="app-mobile-header__title">SellerSync</span>
+          <SellerSyncLogo size={20} variant="compact" />
         </header>
 
         <main className="app-main__content">
