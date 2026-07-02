@@ -244,6 +244,135 @@ function DashboardPreview() {
   );
 }
 
+// ── Mini hero mockup (inline HTML/CSS) ───────────────────────────────────────
+function MiniDashboardMock() {
+  return (
+    <div className="mini-mock-root" style={{ width: 'min(86vw,760px)', margin: '0 auto', display: 'flex', justifyContent: 'center' }}>
+      <style>{`
+        .mini-mock-frame { transition: all 0.22s ease; }
+        .mini-grid { transition: all 0.22s ease; }
+        .mini-stats-grid { transition: all 0.18s ease; }
+        @media (max-width: 720px) {
+          .mini-mock-root { width: 94vw !important; }
+          .mini-mock-frame { width: calc(94vw - 24px) !important; height: auto !important; border-radius: 14px !important; }
+          .mini-grid { grid-template-columns: 1fr !important; }
+          .mini-side { order: 2 !important; }
+          .mini-main { order: 1 !important; }
+          .mini-stats-grid { grid-template-columns: repeat(3,1fr) !important; gap: 8px !important; }
+          .mini-sales-chart { height: 56px !important; }
+        }
+        @media (max-width: 420px) {
+          .mini-stats-grid { grid-template-columns: 1fr !important; }
+          .mini-mock-frame { padding: 8px !important; }
+          .mini-recent-table td { padding: 6px 4px !important; font-size: 12px !important; }
+        }
+      `}</style>
+      <div className="mini-mock-frame" style={{ width: 760, height: 440, borderRadius: 20, background: 'linear-gradient(180deg, rgba(250,250,255,0.95), rgba(245,243,255,0.9))', boxShadow: '0 22px 60px rgba(15,23,42,0.10)', border: '1px solid rgba(124,58,237,0.06)', overflow: 'hidden', transformStyle: 'preserve-3d', position: 'relative', backdropFilter: 'saturate(150%) blur(8px)', animation: 'float 6.8s ease-in-out infinite' }}>
+        {/* top browser bar */}
+        <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', background: 'linear-gradient(90deg, rgba(255,255,255,0.6), rgba(250,250,255,0.4))', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <div style={{ width: 10, height: 10, borderRadius: 999, background: '#ff5f57' }} />
+            <div style={{ width: 10, height: 10, borderRadius: 999, background: '#febc2e' }} />
+            <div style={{ width: 10, height: 10, borderRadius: 999, background: '#28c840' }} />
+          </div>
+          <div style={{ flex: 1, textAlign: 'center', color: '#777', fontSize: 12 }}>app.sellersync.io • demo</div>
+        </div>
+
+        <div className="mini-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 280px', gap: 14, padding: 14 }}>
+          <div className="mini-main" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div className="mini-stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 12 }}>
+              <div style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 12, padding: 14, boxShadow: 'inset 0 -6px 18px rgba(99,102,241,0.02)' }}>
+                <div style={{ fontSize: 12, color: '#7b7f8a', fontWeight: 700 }}>Total Orders</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0b1220' }}>8,412</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 800 }}>+6.8%</span>
+                  <Sparkline data={[20,22,21,25,28,27,30,29,32]} color="#6366f1" h={22} w={72} />
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 12, color: '#7b7f8a', fontWeight: 700 }}>Revenue</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0b1220' }}>$92,300</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: '#16a34a', fontWeight: 800 }}>+12.3%</span>
+                  <Sparkline data={revenueData.slice(-9)} color="#8b5cf6" h={22} w={72} />
+                </div>
+              </div>
+              <div style={{ background: 'rgba(255,255,255,0.86)', borderRadius: 12, padding: 14 }}>
+                <div style={{ fontSize: 12, color: '#7b7f8a', fontWeight: 700 }}>Inventory</div>
+                <div style={{ fontSize: 18, fontWeight: 800, color: '#0b1220' }}>42,102</div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 10 }}>
+                  <span style={{ fontSize: 12, color: '#ef4444', fontWeight: 800 }}>-2.1%</span>
+                  <Sparkline data={[45,44,42,41,40,39,38,37,36]} color="#06b6d4" h={22} w={72} />
+                </div>
+              </div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.92)', borderRadius: 12, padding: 12, height: 160, display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div style={{ fontSize: 13, fontWeight: 800 }}>Sales (30d)</div>
+                <div style={{ fontSize: 11, color: '#888' }}>sparkline</div>
+              </div>
+              <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <svg className="mini-sales-chart" viewBox="0 0 300 80" style={{ width: '100%', height: 68 }}>
+                  {(() => {
+                    const data = revenueData.slice(-12);
+                    const max = Math.max(...data);
+                    const pts = data.map((v,i) => `${(i/(data.length-1))*300},${80-(v/max)*62}`);
+                    const line = `M ${pts.join(' L ')}`;
+                    const area = `M ${pts.join(' L ')} L 300,80 L 0,80 Z`;
+                    return (
+                      <>
+                        <defs>
+                          <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity="0.12"/><stop offset="100%" stopColor="#6366f1" stopOpacity="0"/></linearGradient>
+                        </defs>
+                        <path d={area} fill="url(#g1)" />
+                        <path d={line} fill="none" stroke="#6366f1" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                      </>
+                    );
+                  })()}
+                </svg>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, color: '#8a8f99' }}>
+                <div>Last 30 days</div>
+                <div style={{ fontWeight: 800, color: '#0b1220' }}>$92,300</div>
+              </div>
+            </div>
+          </div>
+
+          <div className="mini-side" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            <div style={{ background: 'rgba(255,255,255,0.94)', borderRadius: 12, padding: 12 }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 8 }}>AI Insights</div>
+              <div style={{ fontSize: 13, color: '#6b7280' }}>Reorder 12 SKUs within 7 days to avoid stockouts.</div>
+            </div>
+
+            <div style={{ background: 'rgba(255,255,255,0.96)', borderRadius: 12, padding: 8, overflow: 'auto' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, marginBottom: 6 }}>Recent Orders</div>
+              <table className="mini-recent-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                <tbody>
+                  {sellerRows.slice(0,4).map((r,i) => (
+                    <tr key={r.name} style={{ borderTop: '1px solid rgba(18,18,20,0.03)' }}>
+                      <td style={{ padding: '8px 6px', fontWeight: 700 }}>{r.name.split(' ')[0]}</td>
+                      <td style={{ padding: '8px 6px', color: '#666' }}>{r.rev}</td>
+                      <td style={{ padding: '8px 6px', color: r.chg.startsWith('+') ? '#16a34a' : '#ef4444', fontWeight: 700 }}>{r.chg}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div style={{ background: 'rgba(255,250,240,0.98)', borderRadius: 12, padding: 12, border: '1px solid rgba(249,205,178,0.6)' }}>
+              <div style={{ fontSize: 12, fontWeight: 800, color: '#b45309' }}>Low stock</div>
+              <div style={{ fontSize: 13, color: '#6b7280' }}>3 SKUs below reorder point — prioritize restock.</div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ position: 'absolute', right: -18, bottom: -28, transform: 'rotate(-6deg)', width: 120, height: 80, borderRadius: 12, background: 'linear-gradient(90deg, rgba(99,102,241,0.06), rgba(139,92,246,0.06))', filter: 'blur(16px)', opacity: 0.9 }} />
+      </div>
+    </div>
+  );
+}
+
 // ── Bento card ────────────────────────────────────────────────────────────────
 
 
@@ -420,12 +549,9 @@ export default function App() {
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.24, ease: "easeOut" }} style={{ animation: "float 6.5s ease-in-out infinite", maxWidth: 980, margin: "0 auto" }}>
-            <img
-              src={"/src/assets/landing-hero.png"}
-              alt="SellerSync dashboard preview"
-              style={{ width: "100%", height: "auto", display: "block", borderRadius: 24, boxShadow: "0 32px 80px rgba(0,0,0,0.12)", border: "1px solid rgba(99,102,241,0.12)" }}
-              loading="eager"
-            />
+            <div style={{ display: 'flex', justifyContent: 'center', padding: 8 }}>
+              <MiniDashboardMock />
+            </div>
           </motion.div>
         </div>
       </section>
