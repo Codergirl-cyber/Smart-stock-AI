@@ -18,6 +18,71 @@ function useInView(threshold = 0.2) {
   return [ref, inView];
 }
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 24 },
+  visible: (delay = 0) => ({
+    opacity: 1,
+    y: 0,
+    transition: { duration: 0.6, delay, ease: [0.16, 1, 0.3, 1] },
+  }),
+};
+
+const staggerContainer = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: { staggerChildren: 0.08, delayChildren: 0.08 },
+  },
+};
+
+function RippleButton({ children, onClick, style, className }) {
+  const [ripples, setRipples] = useState([]);
+
+  const triggerRipple = (event) => {
+    const rect = event.currentTarget.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    const id = `${Date.now()}-${Math.random()}`;
+
+    setRipples((prev) => [...prev, { id, x, y }]);
+    window.setTimeout(() => {
+      setRipples((prev) => prev.filter((item) => item.id !== id));
+    }, 650);
+
+    onClick?.(event);
+  };
+
+  return (
+    <motion.button
+      className={className}
+      onClick={triggerRipple}
+      whileHover={{ scale: 1.01, y: -2 }}
+      whileTap={{ scale: 0.97 }}
+      style={{ position: "relative", overflow: "hidden", ...style }}
+    >
+      {children}
+      {ripples.map((ripple) => (
+        <motion.span
+          key={ripple.id}
+          initial={{ opacity: 0.35, scale: 0 }}
+          animate={{ opacity: 0, scale: 2.8 }}
+          transition={{ duration: 0.7, ease: "easeOut" }}
+          style={{
+            position: "absolute",
+            left: ripple.x,
+            top: ripple.y,
+            width: 10,
+            height: 10,
+            borderRadius: "50%",
+            background: "rgba(255,255,255,0.35)",
+            transform: "translate(-50%, -50%)",
+            pointerEvents: "none",
+          }}
+        />
+      ))}
+    </motion.button>
+  );
+}
 
 // ── Micro sparkline ───────────────────────────────────────────────────────────
 function Sparkline({ data = [], color = "#6366f1", h = 24, w = 60 }) {
@@ -267,7 +332,13 @@ function MiniDashboardMock() {
           .mini-recent-table td { padding: 6px 4px !important; font-size: 12px !important; }
         }
       `}</style>
-      <div className="mini-mock-frame" style={{ width: 760, height: 440, borderRadius: 20, background: 'linear-gradient(180deg, rgba(250,250,255,0.95), rgba(245,243,255,0.9))', boxShadow: '0 22px 60px rgba(15,23,42,0.10)', border: '1px solid rgba(124,58,237,0.06)', overflow: 'hidden', transformStyle: 'preserve-3d', position: 'relative', backdropFilter: 'saturate(150%) blur(8px)', animation: 'float 6.8s ease-in-out infinite' }}>
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        animate={{ opacity: 1, y: [0, -8, 0], rotate: [0, 0.35, 0] }}
+        transition={{ duration: 6.2, repeat: Infinity, ease: 'easeInOut' }}
+        className="mini-mock-frame"
+        style={{ width: 760, height: 440, borderRadius: 20, background: 'linear-gradient(180deg, rgba(250,250,255,0.95), rgba(245,243,255,0.9))', boxShadow: '0 22px 60px rgba(15,23,42,0.10)', border: '1px solid rgba(124,58,237,0.06)', overflow: 'hidden', transformStyle: 'preserve-3d', position: 'relative', backdropFilter: 'saturate(150%) blur(8px)' }}
+      >
         {/* top browser bar */}
         <div style={{ height: 40, display: 'flex', alignItems: 'center', gap: 10, padding: '0 14px', background: 'linear-gradient(90deg, rgba(255,255,255,0.6), rgba(250,250,255,0.4))', borderBottom: '1px solid rgba(0,0,0,0.04)' }}>
           <div style={{ display: 'flex', gap: 8 }}>
@@ -368,7 +439,7 @@ function MiniDashboardMock() {
         </div>
 
         <div style={{ position: 'absolute', right: -18, bottom: -28, transform: 'rotate(-6deg)', width: 120, height: 80, borderRadius: 12, background: 'linear-gradient(90deg, rgba(99,102,241,0.06), rgba(139,92,246,0.06))', filter: 'blur(16px)', opacity: 0.9 }} />
-      </div>
+      </motion.div>
     </div>
   );
 }
@@ -378,11 +449,15 @@ function MiniDashboardMock() {
 
 // ── Section reveal wrapper ────────────────────────────────────────────────────
 function Reveal({ children, delay = 0 }) {
-  const [ref, inView] = useInView(0.15);
   return (
-    <div ref={ref} style={{ opacity: inView ? 1 : 0, transform: inView ? "none" : "translateY(32px)", transition: `opacity 0.65s ${delay}s, transform 0.65s ${delay}s cubic-bezier(0.16,1,0.3,1)` }}>
+    <motion.div
+      initial={{ opacity: 0, y: 28 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, amount: 0.2 }}
+      transition={{ duration: 0.65, delay, ease: [0.16, 1, 0.3, 1] }}
+    >
       {children}
-    </div>
+    </motion.div>
   );
 }
 
@@ -446,14 +521,12 @@ function Navbar({ scrolled, activeSection, onScrollTo }) {
           >
             Sign in
           </a>
-          <button
+          <RippleButton
             style={{ fontSize: 14, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 10, padding: "9px 20px", cursor: "pointer", boxShadow: "0 4px 12px rgba(99,102,241,0.3)", transition: "all 0.2s" }}
-            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)"; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"; }}
             onClick={() => navigate("/dashboard")}
           >
             Get started →
-          </button>
+          </RippleButton>
         </div>
       </div>
     </nav>
@@ -506,6 +579,7 @@ export default function App() {
         @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
+        html { scroll-behavior: smooth; }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { background: #fafafa; }
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
@@ -538,14 +612,12 @@ export default function App() {
           </motion.p>
 
           <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }} style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
-            <button
+            <RippleButton
               style={{ fontSize: 16, fontWeight: 800, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 14, padding: "15px 30px", cursor: "pointer", boxShadow: "0 12px 34px rgba(99,102,241,0.32)", transition: "transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease", willChange: "transform" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px) scale(1.01)"; e.currentTarget.style.boxShadow = "0 18px 46px rgba(99,102,241,0.42)"; e.currentTarget.style.filter = "brightness(1.03)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 12px 34px rgba(99,102,241,0.32)"; e.currentTarget.style.filter = "none"; }}
               onClick={() => navigate("/signup")}
             >
               Get Started →
-            </button>
+            </RippleButton>
           </motion.div>
 
           <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.24, ease: "easeOut" }} style={{ animation: "float 6.5s ease-in-out infinite", maxWidth: 980, margin: "0 auto" }}>
@@ -600,7 +672,13 @@ export default function App() {
           </div>
         </Reveal>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={staggerContainer}
+          style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}
+        >
           {[
             {
               title: "Add products",
@@ -623,17 +701,22 @@ export default function App() {
               icon: "✦",
             },
           ].map((s, i) => (
-            <Reveal key={s.title} delay={i * 0.05}>
-              <div style={{ background: "#fff", border: "1px solid #ededed", borderRadius: 20, padding: 18, boxShadow: "0 10px 40px rgba(99,102,241,0.08)" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 16, background: `linear-gradient(135deg, rgba(99,102,241,${0.22}), rgba(139,92,246,${0.18}))`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, border: "1px solid rgba(99,102,241,0.18)" }}>
-                  <span style={{ fontWeight: 900, color: "#6366f1", fontSize: 18 }}>{s.icon}</span>
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{s.title}</div>
-                <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{s.desc}</div>
+            <motion.div
+              key={s.title}
+              variants={fadeUp}
+              custom={i * 0.05}
+              whileHover={{ y: -6, scale: 1.01, boxShadow: "0 20px 60px rgba(99,102,241,0.12)" }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              style={{ background: "#fff", border: "1px solid #ededed", borderRadius: 20, padding: 18, boxShadow: "0 10px 40px rgba(99,102,241,0.08)" }}
+            >
+              <div style={{ width: 44, height: 44, borderRadius: 16, background: `linear-gradient(135deg, rgba(99,102,241,${0.22}), rgba(139,92,246,${0.18}))`, display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12, border: "1px solid rgba(99,102,241,0.18)" }}>
+                <span style={{ fontWeight: 900, color: "#6366f1", fontSize: 18 }}>{s.icon}</span>
               </div>
-            </Reveal>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{s.title}</div>
+              <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{s.desc}</div>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
       {/* ── Core Features ── */}
@@ -647,7 +730,13 @@ export default function App() {
           </div>
         </Reveal>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}>
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={staggerContainer}
+          style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14 }}
+        >
           {[
             { title: "Inventory Management", desc: "Products you can trust—with inventory visibility that stays current.", icon: "▤" },
             { title: "Order Tracking", desc: "Manage orders in one dashboard with customer context.", icon: "◈" },
@@ -656,21 +745,26 @@ export default function App() {
             { title: "Transaction History", desc: "Record transactions so you can review activity and audit quickly.", icon: "∞" },
             { title: "AI Insights", desc: "Restocking needs, best-performing products, sales trends, and inventory health.", icon: "✦" },
           ].map((f, i) => (
-            <Reveal key={f.title} delay={i * 0.05}>
-              <div style={{ background: "#fff", border: "1px solid #ededed", borderRadius: 20, padding: 18, boxShadow: "0 10px 40px rgba(99,102,241,0.06)" }}>
-                <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
-                  <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <span style={{ color: "#7c3aed", fontWeight: 900, fontSize: 18 }}>{f.icon}</span>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{f.title}</div>
-                    <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{f.desc}</div>
-                  </div>
+            <motion.div
+              key={f.title}
+              variants={fadeUp}
+              custom={i * 0.05}
+              whileHover={{ y: -6, scale: 1.01, boxShadow: "0 20px 60px rgba(99,102,241,0.1)" }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              style={{ background: "#fff", border: "1px solid #ededed", borderRadius: 20, padding: 18, boxShadow: "0 10px 40px rgba(99,102,241,0.06)" }}
+            >
+              <div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+                <div style={{ width: 44, height: 44, borderRadius: 16, background: "rgba(124,58,237,0.10)", border: "1px solid rgba(124,58,237,0.20)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <span style={{ color: "#7c3aed", fontWeight: 900, fontSize: 18 }}>{f.icon}</span>
+                </div>
+                <div>
+                  <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{f.title}</div>
+                  <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{f.desc}</div>
                 </div>
               </div>
-            </Reveal>
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
       
       {/* ── Pricing (anchor) ── */}
@@ -758,25 +852,36 @@ export default function App() {
           </div>
         </Reveal>
 
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}>
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, amount: 0.2 }}
+          variants={staggerContainer}
+          style={{ display: "grid", gridTemplateColumns: "repeat(4,1fr)", gap: 14 }}
+        >
           {[
             { title: "Restock needs", desc: "AI highlights products likely to run low so you can reorder on time.", icon: "⟳" },
             { title: "Best-performing products", desc: "See which items are driving sales momentum.", icon: "∞" },
             { title: "Sales trends", desc: "Understand how performance changes over time.", icon: "◴" },
             { title: "Inventory health", desc: "Get a clear view of what’s safe vs. at risk.", icon: "▤" },
           ].map((x, i) => (
-            <Reveal key={x.title} delay={i * 0.05}>
-              <div style={{ background: "#fff", borderRadius: 22, border: "1px solid rgba(99,102,241,0.14)", padding: 16, boxShadow: "0 20px 70px rgba(99,102,241,0.08)" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 16, background: "linear-gradient(135deg, rgba(99,102,241,0.16), rgba(139,92,246,0.10))", border: "1px solid rgba(99,102,241,0.20)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
-                  <span style={{ color: "#7c3aed", fontWeight: 900, fontSize: 18 }}>{x.icon}</span>
-                </div>
-                <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{x.title}</div>
-                <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{x.desc}</div>
-                <div style={{ marginTop: 12, height: 8, borderRadius: 999, background: "linear-gradient(90deg, rgba(124,58,237,0.25), rgba(124,58,237,0.00))" }} />
+            <motion.div
+              key={x.title}
+              variants={fadeUp}
+              custom={i * 0.05}
+              whileHover={{ y: -6, scale: 1.01, boxShadow: "0 20px 70px rgba(99,102,241,0.12)" }}
+              transition={{ type: "spring", stiffness: 260, damping: 20 }}
+              style={{ background: "#fff", borderRadius: 22, border: "1px solid rgba(99,102,241,0.14)", padding: 16, boxShadow: "0 20px 70px rgba(99,102,241,0.08)" }}
+            >
+              <div style={{ width: 44, height: 44, borderRadius: 16, background: "linear-gradient(135deg, rgba(99,102,241,0.16), rgba(139,92,246,0.10))", border: "1px solid rgba(99,102,241,0.20)", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: 12 }}>
+                <span style={{ color: "#7c3aed", fontWeight: 900, fontSize: 18 }}>{x.icon}</span>
               </div>
-            </Reveal>
+              <div style={{ fontSize: 14, fontWeight: 900, color: "#111", marginBottom: 8 }}>{x.title}</div>
+              <div style={{ fontSize: 13, color: "#6b7280", lineHeight: 1.6 }}>{x.desc}</div>
+              <div style={{ marginTop: 12, height: 8, borderRadius: 999, background: "linear-gradient(90deg, rgba(124,58,237,0.25), rgba(124,58,237,0.00))" }} />
+            </motion.div>
           ))}
-        </div>
+        </motion.div>
       </section>
 
 
@@ -794,14 +899,12 @@ export default function App() {
             <p style={{ fontSize: 16, color: "#6b7280", marginBottom: 26, lineHeight: 1.7 }}>
               Add products and orders, let stock update when you ship, and use AI insights to restock smarter.
             </p>
-            <button
+            <RippleButton
               style={{ fontSize: 18, fontWeight: 800, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 16, padding: "16px 44px", cursor: "pointer", boxShadow: "0 12px 40px rgba(99,102,241,0.35)", transition: "all 0.22s" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 18px 55px rgba(99,102,241,0.45)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 12px 40px rgba(99,102,241,0.35)"; }}
               onClick={() => navigate("/signup")}
             >
               Get Started →
-            </button>
+            </RippleButton>
           </Reveal>
         </div>
       </section>
