@@ -1,10 +1,9 @@
-import { useState, useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import SellerSyncLogo from "./components/SellerSyncLogo";
+import { motion } from "framer-motion";
 
 // ── Utility ──────────────────────────────────────────────────────────────────
-
-
-
 
 function useInView(threshold = 0.2) {
   const ref = useRef(null);
@@ -258,31 +257,57 @@ function Reveal({ children, delay = 0 }) {
 }
 
 // ── Navbar ────────────────────────────────────────────────────────────────────
-function Navbar({ scrolled }) {
+function Navbar({ scrolled, activeSection, onScrollTo }) {
   const navigate = useNavigate();
 
-  return (
+  const links = [
+    { id: "product", label: "Product" },
+    { id: "pricing", label: "Pricing" },
+    { id: "integrations", label: "Integrations" },
+    { id: "docs", label: "Docs" },
+  ];
 
+  return (
     <nav style={{
       position: "fixed", top: 0, left: 0, right: 0, zIndex: 100,
-      background: scrolled ? "rgba(250,250,250,0.92)" : "transparent",
-      backdropFilter: scrolled ? "blur(16px)" : "none",
+      background: scrolled ? "rgba(255,255,255,0.72)" : "transparent",
+      backdropFilter: scrolled ? "saturate(180%) blur(8px)" : "none",
       borderBottom: scrolled ? "1px solid rgba(0,0,0,0.06)" : "none",
-      transition: "all 0.3s",
+      transition: "all 0.28s",
+      boxShadow: scrolled ? "0 6px 30px rgba(18,18,20,0.04)" : "none",
     }}>
       <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 32px", height: 64, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
           <div style={{ width: 32, height: 32, borderRadius: 9, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", display: "flex", alignItems: "center", justifyContent: "center" }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M3 8L7 12L13 4" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </div>
-          <span style={{ fontWeight: 800, fontSize: 16, color: "#111", letterSpacing: "-0.4px" }}>SellerSync</span>
+            <SellerSyncLogo size={32} variant="compact" />
         </div>
+
         <div style={{ display: "flex", gap: 28, alignItems: "center" }}>
-          {["Product","Pricing","Integrations","Docs"].map(l => (
-            <a key={l} href="#" style={{ fontSize: 14, color: "#555", fontWeight: 500, textDecoration: "none", transition: "color 0.2s" }}
-               onMouseEnter={e => e.target.style.color = "#111"} onMouseLeave={e => e.target.style.color = "#555"}>{l}</a>
+          {links.map(l => (
+            <a
+              key={l.id}
+              href={`#${l.id}`}
+              onClick={(e) => { e.preventDefault(); onScrollTo && onScrollTo(l.id); }}
+              style={{
+                fontSize: 14,
+                color: activeSection === l.id ? "#111" : "#555",
+                fontWeight: activeSection === l.id ? 700 : 500,
+                textDecoration: "none",
+                position: "relative",
+                padding: "6px 0",
+                transition: "color 0.18s",
+              }}
+              onMouseEnter={e => e.currentTarget.style.color = "#111"}
+              onMouseLeave={e => e.currentTarget.style.color = activeSection === l.id ? "#111" : "#555"}
+            >
+              {l.label}
+              {activeSection === l.id ? <span style={{ display: "block", height: 3, width: 32, background: "linear-gradient(90deg,#6366f1,#8b5cf6)", borderRadius: 3, marginTop: 6 }} /> : null}
+            </a>
           ))}
         </div>
+
         <div style={{ display: "flex", gap: 10, alignItems: "center" }}>
           <a
             href="/login"
@@ -293,9 +318,9 @@ function Navbar({ scrolled }) {
           </a>
           <button
             style={{ fontSize: 14, fontWeight: 600, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 10, padding: "9px 20px", cursor: "pointer", boxShadow: "0 4px 12px rgba(99,102,241,0.3)", transition: "all 0.2s" }}
-            onMouseEnter={e => { e.target.style.transform = "translateY(-1px)"; e.target.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)"; }}
-            onMouseLeave={e => { e.target.style.transform = "none"; e.target.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"; }}
-            onClick={() => navigate("/signup")}
+            onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-1px)"; e.currentTarget.style.boxShadow = "0 6px 20px rgba(99,102,241,0.4)"; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 4px 12px rgba(99,102,241,0.3)"; }}
+            onClick={() => navigate("/dashboard")}
           >
             Get started →
           </button>
@@ -312,12 +337,34 @@ function Navbar({ scrolled }) {
 export default function App() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
+  const [activeSection, setActiveSection] = useState("product");
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 20);
     window.addEventListener("scroll", handler);
     return () => window.removeEventListener("scroll", handler);
   }, []);
+
+  useEffect(() => {
+    // observe sections with data-nav to update activeSection
+    const els = Array.from(document.querySelectorAll('section[data-nav]'));
+    if (!els.length) return;
+    const obs = new IntersectionObserver((entries) => {
+      const visible = entries.filter(e => e.isIntersecting).sort((a,b) => b.intersectionRatio - a.intersectionRatio)[0];
+      if (visible && visible.target.dataset && visible.target.dataset.nav) {
+        setActiveSection(visible.target.dataset.nav);
+      }
+    }, { threshold: [0.35, 0.5, 0.75] });
+    els.forEach(e => obs.observe(e));
+    return () => obs.disconnect();
+  }, []);
+
+  function scrollToSection(id) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const top = el.getBoundingClientRect().top + window.scrollY - 72; // offset for navbar
+    window.scrollTo({ top, behavior: 'smooth' });
+  }
 
 
   return (
@@ -333,7 +380,7 @@ export default function App() {
         ::-webkit-scrollbar { width: 6px; } ::-webkit-scrollbar-thumb { background: #ddd; border-radius: 3px; }
       `}</style>
 
-      <Navbar scrolled={scrolled} />
+      <Navbar scrolled={scrolled} activeSection={activeSection} onScrollTo={scrollToSection} />
 
       {/* ── HERO ── */}
       <section style={{ position: "relative", minHeight: "92vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 108, paddingBottom: 56, overflow: "hidden" }}>
@@ -458,7 +505,7 @@ export default function App() {
       </section>
 
       {/* ── Core Features ── */}
-      <section style={{ padding: "76px 24px", maxWidth: 1280, margin: "0 auto", position: "relative" }}>
+      <section data-nav="product" style={{ padding: "76px 24px", maxWidth: 1280, margin: "0 auto", position: "relative" }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(180deg, rgba(99,102,241,0.05) 0%, rgba(99,102,241,0.00) 65%)", pointerEvents: "none" }} />
         <Reveal>
           <div style={{ textAlign: "center", marginBottom: 34 }}>
@@ -493,6 +540,27 @@ export default function App() {
           ))}
         </div>
       </section>
+      
+      {/* ── Pricing (anchor) ── */}
+      <section data-nav="pricing" style={{ padding: "60px 24px", maxWidth: 920, margin: "40px auto", textAlign: "center" }}>
+        <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: "1.4px", textTransform: "uppercase", marginBottom: 14 }}>Pricing</div>
+        <h2 style={{ fontSize: "clamp(22px,3.2vw,36px)", fontWeight: 900, color: "#111", marginBottom: 18 }}>Simple pricing that scales with your business</h2>
+        <p style={{ color: "#6b7280", maxWidth: 720, margin: "0 auto 22px" }}>Choose a plan that fits your seller volume. No surprises, monthly or annual billing.</p>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3,1fr)", gap: 14, marginTop: 18 }}>
+          {[
+            { name: "Starter", price: "$19/mo", desc: "Up to 500 orders/month" },
+            { name: "Growth", price: "$79/mo", desc: "Up to 10k orders/month" },
+            { name: "Pro", price: "$249/mo", desc: "Unlimited orders + priority support" },
+          ].map(p => (
+            <div key={p.name} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 14, padding: 20 }}>
+              <div style={{ fontSize: 13, fontWeight: 800, color: "#111", marginBottom: 8 }}>{p.name}</div>
+              <div style={{ fontSize: 20, fontWeight: 900, color: "#111", marginBottom: 8 }}>{p.price}</div>
+              <div style={{ color: "#6b7280", marginBottom: 12 }}>{p.desc}</div>
+              <button style={{ marginTop: 8, background: "linear-gradient(135deg,#6366f1,#8b5cf6)", color: "#fff", border: "none", padding: "10px 14px", borderRadius: 10, cursor: "pointer" }} onClick={() => navigate('/signup')}>Start trial</button>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── Dashboard Preview ── */}
       <section style={{ padding: "0 24px 84px", maxWidth: 1280, margin: "0 auto" }}>
@@ -506,7 +574,7 @@ export default function App() {
           <Reveal delay={0.05}>
             <div>
               <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: "1.4px", textTransform: "uppercase", marginBottom: 14 }}>Your dashboard</div>
-              <h2 style={{ fontSize: "clamp(26px,3.4vw,46px)", fontWeight: 900, letterSpacing: "-2px", color: "#111", marginBottom: 14 }}>One view of orders, customers, and inventory health</h2>
+            <h2 style={{ fontSize: "clamp(26px,3.4vw,46px)", fontWeight: 900, letterSpacing: "-2px", color: "#111", marginBottom: 14 }}>One view of orders, customers, and inventory health</h2>
               <p style={{ fontSize: 16, color: "#6b7280", lineHeight: 1.7, marginBottom: 18 }}>
                 Track sales activity, see which products need restocking, and understand inventory health without juggling spreadsheets.
               </p>
@@ -526,8 +594,28 @@ export default function App() {
           </Reveal>
         </div>
       </section>
+      
+        {/* ── Integrations (anchor) ── */}
+        <section data-nav="integrations" style={{ padding: "54px 24px", maxWidth: 1280, margin: "0 auto", textAlign: "center" }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: "1.4px", textTransform: "uppercase", marginBottom: 14 }}>Integrations</div>
+          <h2 style={{ fontSize: "clamp(24px,3.4vw,40px)", fontWeight: 900, color: "#111", marginBottom: 10 }}>Works with the platforms you already sell on</h2>
+          <p style={{ color: "#6b7280", maxWidth: 720, margin: "0 auto 22px" }}>Connect marketplaces and storefronts to keep inventory and orders in sync.</p>
+          <div style={{ display: "flex", justifyContent: "center", gap: 18, marginTop: 18, flexWrap: "wrap" }}>
+            {[
+              { name: "Amazon", logo: null },
+              { name: "Shopify", logo: null },
+              { name: "eBay", logo: null },
+              { name: "Etsy", logo: null },
+              { name: "BigCommerce", logo: null },
+            ].map(p => (
+              <div key={p.name} style={{ background: "#fff", border: "1px solid #eee", padding: 16, borderRadius: 12, minWidth: 140 }}>
+                <div style={{ fontSize: 14, fontWeight: 800, color: "#111" }}>{p.name}</div>
+              </div>
+            ))}
+          </div>
+        </section>
 
-      {/* ── AI Insights Showcase ── */}
+        {/* ── AI Insights Showcase ── */}
       <section style={{ padding: "78px 24px", maxWidth: 1280, margin: "0 auto", position: "relative" }}>
         <div style={{ position: "absolute", inset: 0, background: "linear-gradient(135deg, rgba(99,102,241,0.06) 0%, rgba(139,92,246,0.00) 55%)", pointerEvents: "none" }} />
         <Reveal>
@@ -586,6 +674,28 @@ export default function App() {
         </div>
       </section>
 
+
+      {/* ── Docs / FAQ (anchor) ── */}
+      <section data-nav="docs" style={{ padding: "54px 24px", maxWidth: 960, margin: "0 auto" }}>
+        <div style={{ textAlign: "center", marginBottom: 28 }}>
+          <div style={{ fontSize: 13, fontWeight: 800, color: "#7c3aed", letterSpacing: "1.4px", textTransform: "uppercase", marginBottom: 14 }}>Docs</div>
+          <h2 style={{ fontSize: "clamp(22px,3.2vw,34px)", fontWeight: 900, color: "#111" }}>Frequently asked questions</h2>
+          <p style={{ color: "#6b7280", maxWidth: 720, margin: "8px auto 0" }}>Quick answers to common questions about integrations, billing, and setup.</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+          {[
+            { q: "How do I connect my Shopify store?", a: "Go to Integrations → Shopify and follow the OAuth steps to connect your store." },
+            { q: "Can I export transaction history?", a: "Yes — export CSV from the dashboard history view under Transactions." },
+            { q: "Is there a trial?", a: "We offer a 14-day trial for all plans. No credit card required to start." },
+            { q: "How does billing work?", a: "Monthly and annual billing are supported. Upgrade/downgrade from Billing settings." },
+          ].map(item => (
+            <div key={item.q} style={{ background: "#fff", border: "1px solid #eee", borderRadius: 10, padding: 14 }}>
+              <div style={{ fontSize: 14, fontWeight: 800, marginBottom: 6 }}>{item.q}</div>
+              <div style={{ color: "#6b7280" }}>{item.a}</div>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* ── FOOTER ── */}
       <footer style={{ borderTop: "1px solid #f0f0f0", background: "#fff", padding: "48px 32px" }}>
