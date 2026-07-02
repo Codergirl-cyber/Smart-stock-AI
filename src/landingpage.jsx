@@ -61,6 +61,7 @@ function MeshBg() {
       <div style={{ position: "absolute", top: "-20%", left: "20%", width: 700, height: 700, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.13) 0%, transparent 70%)", animation: "blob1 8s ease-in-out infinite alternate" }} />
       <div style={{ position: "absolute", top: "10%", right: "-10%", width: 500, height: 500, borderRadius: "50%", background: "radial-gradient(circle, rgba(139,92,246,0.10) 0%, transparent 70%)", animation: "blob2 10s ease-in-out infinite alternate" }} />
       <div style={{ position: "absolute", bottom: "0%", left: "-5%", width: 400, height: 400, borderRadius: "50%", background: "radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)", animation: "blob1 12s ease-in-out infinite alternate-reverse" }} />
+      <div style={{ position: "absolute", top: "55%", right: "12%", width: 260, height: 260, borderRadius: "50%", background: "radial-gradient(circle, rgba(167,139,250,0.13) 0%, transparent 72%)", animation: "blob3 14s ease-in-out infinite alternate" }} />
       <svg style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0.04 }}>
         <defs>
           <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
@@ -372,6 +373,7 @@ export default function App() {
       <style>{`
         @keyframes blob1 { from { transform: translate(0,0) scale(1); } to { transform: translate(40px,30px) scale(1.1); } }
         @keyframes blob2 { from { transform: translate(0,0) scale(1.05); } to { transform: translate(-30px,20px) scale(0.95); } }
+        @keyframes blob3 { from { transform: translate(0,0) scale(1); } to { transform: translate(-18px,-14px) scale(1.08); } }
         @keyframes float { 0%,100% { transform: translateY(0px); } 50% { transform: translateY(-12px); } }
         @keyframes pulse { 0%,100% { opacity:1; } 50% { opacity:0.4; } }
         @keyframes spin { from { transform:rotate(0deg); } to { transform:rotate(360deg); } }
@@ -383,44 +385,48 @@ export default function App() {
       <Navbar scrolled={scrolled} activeSection={activeSection} onScrollTo={scrollToSection} />
 
       {/* ── HERO ── */}
-      <section style={{ position: "relative", minHeight: "92vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", paddingTop: 108, paddingBottom: 56, overflow: "hidden" }}>
+      <section style={{ position: "relative", minHeight: "92vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", padding: "128px 24px 84px", overflow: "hidden", background: "radial-gradient(ellipse at top, rgba(255,255,255,0.95) 0%, rgba(250,250,250,0.97) 42%, rgba(245,243,255,0.82) 100%)" }}>
         <MeshBg />
+        <div style={{ position: "absolute", inset: "8% auto auto 50%", transform: "translateX(-50%)", width: "min(78vw, 980px)", height: "min(78vw, 980px)", borderRadius: "50%", background: "radial-gradient(circle, rgba(124,58,237,0.16) 0%, rgba(124,58,237,0.06) 34%, transparent 72%)", filter: "blur(8px)", pointerEvents: "none", zIndex: 0 }} />
 
         <div style={{ position: "relative", zIndex: 1, textAlign: "center", maxWidth: 1280, margin: "0 auto", padding: "0 24px", width: "100%" }}>
-          <div style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.8)", border: "1px solid #e8e8e8", borderRadius: 999, padding: "8px 16px", marginBottom: 26, boxShadow: "0 10px 30px rgba(0,0,0,0.05)", backdropFilter: "blur(10px)" }}>
-            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#7c3aed", boxShadow: "0 0 0 6px rgba(124,58,237,0.12)" }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: "#4c1d95" }}>Inventory + Orders + Customers</span>
-            <span style={{ fontSize: 13, color: "#7c3aed", fontWeight: 700 }}>with AI insights</span>
-          </div>
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, ease: "easeOut" }}>
+            <div style={{ display: "inline-flex", alignItems: "center", gap: 10, background: "rgba(255,255,255,0.82)", border: "1px solid rgba(124,58,237,0.16)", borderRadius: 999, padding: "9px 18px", marginBottom: 28, boxShadow: "0 12px 38px rgba(24,24,27,0.06)", backdropFilter: "blur(10px)" }}>
+              <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#7c3aed", boxShadow: "0 0 0 6px rgba(124,58,237,0.12)" }} />
+              <span style={{ fontSize: 13, fontWeight: 700, color: "#4c1d95" }}>Inventory + Orders + Customers</span>
+              <span style={{ fontSize: 13, color: "#7c3aed", fontWeight: 700 }}>with AI insights</span>
+            </div>
+          </motion.div>
 
-          <h1 style={{ fontSize: "clamp(40px,7vw,86px)", fontWeight: 900, letterSpacing: "-3px", lineHeight: 1.02, color: "#0a0a0a", marginBottom: 18, maxWidth: 980, marginLeft: "auto", marginRight: "auto" }}>
+          <motion.h1 initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.08, ease: "easeOut" }} style={{ position: "relative", fontSize: "clamp(42px,7vw,86px)", fontWeight: 900, letterSpacing: "-3px", lineHeight: 1.02, color: "#0a0a0a", marginBottom: 20, maxWidth: 980, marginLeft: "auto", marginRight: "auto" }}>
+            <span style={{ position: "absolute", inset: "-8% 6% auto", height: "54%", background: "radial-gradient(circle, rgba(99,102,241,0.20) 0%, rgba(99,102,241,0.04) 58%, transparent 100%)", filter: "blur(18px)", zIndex: -1 }} />
             Run your store,<br />
             <span style={{ background: "linear-gradient(135deg,#6366f1 0%,#8b5cf6 50%,#a78bfa 100%)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text" }}>without the chaos.</span>
-          </h1>
+          </motion.h1>
 
-          <p style={{ fontSize: "clamp(16px,2vw,20px)", color: "#666", maxWidth: 640, margin: "0 auto 28px", lineHeight: 1.7, fontWeight: 400 }}>
+          <motion.p initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.16, ease: "easeOut" }} style={{ fontSize: "clamp(16px,2vw,20px)", color: "#666", maxWidth: 700, margin: "0 auto 30px", lineHeight: 1.75, fontWeight: 400 }}>
             Add products and orders manually, manage customers from one dashboard, and automatically reduce inventory when orders ship—then use AI to spot what to restock, what’s best-performing, and how your sales trend.
-          </p>
+          </motion.p>
 
-          <div style={{ display: "flex", justifyContent: "center", marginBottom: 34 }}>
+          <motion.div initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.2, ease: "easeOut" }} style={{ display: "flex", justifyContent: "center", marginBottom: 36 }}>
             <button
-              style={{ fontSize: 16, fontWeight: 800, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 14, padding: "15px 30px", cursor: "pointer", boxShadow: "0 10px 30px rgba(99,102,241,0.35)", transition: "all 0.22s" }}
-              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-2px)"; e.currentTarget.style.boxShadow = "0 18px 50px rgba(99,102,241,0.45)"; }}
-              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 10px 30px rgba(99,102,241,0.35)"; }}
+              style={{ fontSize: 16, fontWeight: 800, color: "#fff", background: "linear-gradient(135deg,#6366f1,#8b5cf6)", border: "none", borderRadius: 14, padding: "15px 30px", cursor: "pointer", boxShadow: "0 12px 34px rgba(99,102,241,0.32)", transition: "transform 0.22s ease, box-shadow 0.22s ease, filter 0.22s ease", willChange: "transform" }}
+              onMouseEnter={e => { e.currentTarget.style.transform = "translateY(-3px) scale(1.01)"; e.currentTarget.style.boxShadow = "0 18px 46px rgba(99,102,241,0.42)"; e.currentTarget.style.filter = "brightness(1.03)"; }}
+              onMouseLeave={e => { e.currentTarget.style.transform = "none"; e.currentTarget.style.boxShadow = "0 12px 34px rgba(99,102,241,0.32)"; e.currentTarget.style.filter = "none"; }}
               onClick={() => navigate("/signup")}
             >
               Get Started →
             </button>
-          </div>
+          </motion.div>
 
-          <div style={{ animation: "float 6s ease-in-out infinite", maxWidth: 980, margin: "0 auto" }}>
-              <img
+          <motion.div initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.8, delay: 0.24, ease: "easeOut" }} style={{ animation: "float 6.5s ease-in-out infinite", maxWidth: 980, margin: "0 auto" }}>
+            <img
               src={"/src/assets/landing-hero.png"}
               alt="SellerSync dashboard preview"
-              style={{ width: "100%", height: "auto", display: "block", borderRadius: 20, boxShadow: "0 32px 80px rgba(0,0,0,0.12)" }}
+              style={{ width: "100%", height: "auto", display: "block", borderRadius: 24, boxShadow: "0 32px 80px rgba(0,0,0,0.12)", border: "1px solid rgba(99,102,241,0.12)" }}
               loading="eager"
             />
-          </div>
+          </motion.div>
         </div>
       </section>
 
